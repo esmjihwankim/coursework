@@ -1,0 +1,44 @@
+#include "interrupt.h"
+                    
+        
+/*************************************************/
+/*  포트 J를 인터럽트로 사용하도록 설정한다.   */
+/*************************************************/
+void ini_interrupt(void){
+ 
+ Pim.ddrj.byte=0b00000000;    // 인터럽트 포트의 방향 결정
+ Pim.piej.byte=0xff;		// 인터럽트 포트의 인터럽트 enable
+ Pim.ppsj.byte=0x00;		// 인터럽트 포트의 엣지 설정  
+}
+
+
+void interruptJ_function(void)
+{
+  static int num = 0b00000001;
+  
+  if(Pim.pifj.byte & PIFJ0)      // SW2의 인터럽트 발생 
+  { 
+      // 오른쪽으로 이동 
+      if(Regs.portb.byte != 0x7F)
+      {
+        Regs.portb.byte = Regs.portb.byte ^ 0xFF;
+        Regs.portb.byte = Regs.portb.byte << 1;
+        Regs.portb.byte = Regs.portb.byte ^ 0xFF;
+      }
+      Pim.pifj.byte |= 0x01;    // 인터럽트 플래그 초기화 
+    
+  } 
+  else if(Pim.pifj.byte & PIFJ1)  // SW3의 인터럽트 발생   
+  { 
+      // 왼쪽으로 이동 
+      if(Regs.portb.byte != 0xFE)
+      {
+         Regs.portb.byte = Regs.portb.byte ^ 0xFF;
+         Regs.portb.byte = Regs.portb.byte >> 1; 
+         Regs.portb.byte = Regs.portb.byte ^ 0xFF; 
+      }
+      Pim.pifj.byte |= 0x02;   // 인터럽트 플래그 초기화 
+  }
+    
+}
+

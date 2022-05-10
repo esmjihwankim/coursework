@@ -1,0 +1,243 @@
+
+PROGRAM "C:\Users\Jihwan\Desktop\Dev\Embedded\Freescale_마이크로프로세서실험\Projects\TEST_1\bin\Ram_Application.abs"
+
+*********************************************************************************************
+TARGET SECTION
+---------------------------------------------------------------------------------------------
+Processor   : Freescale HC12
+Memory Model: SMALL
+File Format : ELF\DWARF 2.0
+Linker      : SmartLinker V-5.0.52 Build 15249, Sep  7 2015
+
+*********************************************************************************************
+FILE SECTION
+---------------------------------------------------------------------------------------------
+START12.C.o                             Model: SMALL,         Lang: ANSI-C,        Compiler Version: ANSI-C/cC++ Compiler for HC12 V-5.0.46 Build 15249, Sep  7 2015
+main.c.o                                Model: SMALL,         Lang: ANSI-C,        Compiler Version: ANSI-C/cC++ Compiler for HC12 V-5.0.46 Build 15249, Sep  7 2015
+per_DP256_K79X.c.o                      Model: SMALL,         Lang: ANSI-C,        Compiler Version: ANSI-C/cC++ Compiler for HC12 V-5.0.46 Build 15249, Sep  7 2015
+
+*********************************************************************************************
+STARTUP SECTION
+---------------------------------------------------------------------------------------------
+Entry point: 0x2029 (_Startup)
+_startupData is allocated at 0x2039 and uses 11 Bytes
+extern struct _tagStartup {
+  unsigned flags          0
+  _PFunc   main           0x2048    (main)
+  long     stackOffset    0x11FF
+  unsigned nofZeroOut     0
+  _Copy    *toCopyDownBeg 0x204A
+} _startupData;
+
+*********************************************************************************************
+SECTION-ALLOCATION SECTION
+Section Name                    Size  Type     From       To       Segment
+---------------------------------------------------------------------------------------------
+.init                             57     R     0x2000     0x2038   MY_PSEUDO_ROM
+.startData                        15     R     0x2039     0x2047   MY_PSEUDO_ROM
+.text                              2     R     0x2048     0x2049   MY_PSEUDO_ROM
+.copy                              2     R     0x204A     0x204B   MY_PSEUDO_ROM
+.abs_section_0                    48   N/I        0x0       0x2F   .absSeg0
+.abs_section_30                    4   N/I       0x30       0x33   .absSeg1
+.abs_section_34                   12   N/I       0x34       0x3F   .absSeg2
+.abs_section_40                   64   N/I       0x40       0x7F   .absSeg3
+.abs_section_80                   32   N/I       0x80       0x9F   .absSeg4
+.abs_section_a0                   40   N/I       0xA0       0xC7   .absSeg5
+.abs_section_c8                    8   N/I       0xC8       0xCF   .absSeg6
+.abs_section_d0                    8   N/I       0xD0       0xD7   .absSeg7
+.abs_section_d8                    8   N/I       0xD8       0xDF   .absSeg8
+.abs_section_e0                    8   N/I       0xE0       0xE7   .absSeg9
+.abs_section_e8                    8   N/I       0xE8       0xEF   .absSeg10
+.abs_section_f0                    8   N/I       0xF0       0xF7   .absSeg11
+.abs_section_f8                    8   N/I       0xF8       0xFF   .absSeg12
+.abs_section_100                  16   N/I      0x100      0x10F   .absSeg13
+.abs_section_110                  12   N/I      0x110      0x11B   .absSeg14
+.abs_section_120                  32   N/I      0x120      0x13F   .absSeg15
+.abs_section_140                  64   N/I      0x140      0x17F   .absSeg16
+.abs_section_180                  64   N/I      0x180      0x1BF   .absSeg17
+.abs_section_1c0                  64   N/I      0x1C0      0x1FF   .absSeg18
+.abs_section_200                  64   N/I      0x200      0x23F   .absSeg19
+.abs_section_240                  48   N/I      0x240      0x26F   .absSeg20
+.abs_section_280                  64   N/I      0x280      0x2BF   .absSeg21
+.stack                           512   R/W     0x1000     0x11FF   MY_RAM
+
+Summary of section sizes per section type:
+READ_ONLY (R):          4C (dec:       76)
+READ_WRITE (R/W):      200 (dec:      512)
+NO_INIT (N/I):         2AC (dec:      684)
+
+*********************************************************************************************
+VECTOR-ALLOCATION SECTION
+    Address     InitValue   InitFunction
+---------------------------------------------------------------------------------------------
+
+*********************************************************************************************
+OBJECT-ALLOCATION SECTION
+     Name               Module                 Addr   hSize   dSize     Ref    Section   RLIB
+---------------------------------------------------------------------------------------------
+MODULE:                 -- START12.C.o --
+- PROCEDURES:
+     Init                                      2000      29      41       1   .init       
+     _Startup                                  2029      10      16       0   .init       
+- VARIABLES:
+     _startupData                              2039       B      11       5   .startData  
+- LABELS:
+     __SEG_END_SSTACK                          1200       0       0       1               
+MODULE:                 -- main.c.o --
+- PROCEDURES:
+     main                                      2048       2       2       0   .text       
+- VARIABLES:
+MODULE:                 -- per_DP256_K79X.c.o --
+- PROCEDURES:
+- VARIABLES:
+     Regs                                         0      30      48       0   .abs_section_0
+     Page                                        30       4       4       0   .abs_section_30
+     Crg                                         34       C      12       0   .abs_section_34
+     Tim0                                        40      40      64       0   .abs_section_40
+     Atd0                                        80      20      32       0   .abs_section_80
+     Pwm                                         A0      28      40       0   .abs_section_a0
+     Sci0                                        C8       8       8       0   .abs_section_c8
+     Sci1                                        D0       8       8       0   .abs_section_d0
+     Spi0                                        D8       8       8       0   .abs_section_d8
+     Iic                                         E0       8       8       0   .abs_section_e0
+     Bdlc                                        E8       8       8       0   .abs_section_e8
+     Spi1                                        F0       8       8       0   .abs_section_f0
+     Spi2                                        F8       8       8       0   .abs_section_f8
+     Flash                                      100      10      16       0   .abs_section_100
+     Eeprom                                     110       C      12       0   .abs_section_110
+     Atd1                                       120      20      32       0   .abs_section_120
+     Can0                                       140      40      64       0   .abs_section_140
+     Can1                                       180      40      64       0   .abs_section_180
+     Can2                                       1C0      40      64       0   .abs_section_1c0
+     Can3                                       200      40      64       0   .abs_section_200
+     Pim                                        240      30      48       0   .abs_section_240
+     Can4                                       280      40      64       0   .abs_section_280
+
+*********************************************************************************************
+MODULE STATISTIC
+  Name                                      Data   Code  Const
+---------------------------------------------------------------------------------------------
+  START12.C.o                                  0     57      0
+  main.c.o                                     0      2      0
+  per_DP256_K79X.c.o                         684      0      0
+  other                                      512     15      2
+
+*********************************************************************************************
+SECTION USE IN OBJECT-ALLOCATION SECTION
+---------------------------------------------------------------------------------------------
+SECTION: ".text"
+  main 
+SECTION: ".init"
+  Init _Startup 
+SECTION: ".abs_section_0"
+  Regs 
+SECTION: ".abs_section_30"
+  Page 
+SECTION: ".abs_section_34"
+  Crg 
+SECTION: ".abs_section_40"
+  Tim0 
+SECTION: ".abs_section_80"
+  Atd0 
+SECTION: ".abs_section_a0"
+  Pwm 
+SECTION: ".abs_section_c8"
+  Sci0 
+SECTION: ".abs_section_d0"
+  Sci1 
+SECTION: ".abs_section_d8"
+  Spi0 
+SECTION: ".abs_section_e0"
+  Iic 
+SECTION: ".abs_section_e8"
+  Bdlc 
+SECTION: ".abs_section_f0"
+  Spi1 
+SECTION: ".abs_section_f8"
+  Spi2 
+SECTION: ".abs_section_100"
+  Flash 
+SECTION: ".abs_section_110"
+  Eeprom 
+SECTION: ".abs_section_120"
+  Atd1 
+SECTION: ".abs_section_140"
+  Can0 
+SECTION: ".abs_section_180"
+  Can1 
+SECTION: ".abs_section_1c0"
+  Can2 
+SECTION: ".abs_section_200"
+  Can3 
+SECTION: ".abs_section_240"
+  Pim 
+SECTION: ".abs_section_280"
+  Can4 
+
+*********************************************************************************************
+OBJECT LIST SORTED BY ADDRESS
+     Name                                      Addr   hSize   dSize     Ref    Section   RLIB
+---------------------------------------------------------------------------------------------
+     Regs                                         0      30      48       0   .abs_section_0
+     Page                                        30       4       4       0   .abs_section_30
+     Crg                                         34       C      12       0   .abs_section_34
+     Tim0                                        40      40      64       0   .abs_section_40
+     Atd0                                        80      20      32       0   .abs_section_80
+     Pwm                                         A0      28      40       0   .abs_section_a0
+     Sci0                                        C8       8       8       0   .abs_section_c8
+     Sci1                                        D0       8       8       0   .abs_section_d0
+     Spi0                                        D8       8       8       0   .abs_section_d8
+     Iic                                         E0       8       8       0   .abs_section_e0
+     Bdlc                                        E8       8       8       0   .abs_section_e8
+     Spi1                                        F0       8       8       0   .abs_section_f0
+     Spi2                                        F8       8       8       0   .abs_section_f8
+     Flash                                      100      10      16       0   .abs_section_100
+     Eeprom                                     110       C      12       0   .abs_section_110
+     Atd1                                       120      20      32       0   .abs_section_120
+     Can0                                       140      40      64       0   .abs_section_140
+     Can1                                       180      40      64       0   .abs_section_180
+     Can2                                       1C0      40      64       0   .abs_section_1c0
+     Can3                                       200      40      64       0   .abs_section_200
+     Pim                                        240      30      48       0   .abs_section_240
+     Can4                                       280      40      64       0   .abs_section_280
+     Init                                      2000      29      41       1   .init       
+     _Startup                                  2029      10      16       0   .init       
+     main                                      2048       2       2       0   .text       
+
+*********************************************************************************************
+UNUSED-OBJECTS SECTION
+---------------------------------------------------------------------------------------------
+
+*********************************************************************************************
+COPYDOWN SECTION
+---------------------------------------------------------------------------------------------
+------- ROM-ADDRESS: 0x204A ---- SIZE       2 ---
+Filling bytes inserted
+ 0000
+
+*********************************************************************************************
+OBJECT-DEPENDENCIES SECTION
+---------------------------------------------------------------------------------------------
+Init                      USES _startupData 
+_Startup                  USES _startupData __SEG_END_SSTACK Init 
+
+*********************************************************************************************
+DEPENDENCY TREE
+*********************************************************************************************
+ main and _Startup Group
+ | 
+ +- main                
+ |    
+ +- _Startup            
+    | 
+    +- Init                
+         
+*********************************************************************************************
+STATISTIC SECTION
+---------------------------------------------------------------------------------------------
+
+ExeFile:
+--------
+Number of blocks to be downloaded: 4
+Total size of all blocks to be downloaded: 76
+

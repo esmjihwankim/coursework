@@ -1,0 +1,310 @@
+*** EVALUATION ***
+PROGRAM "C:\Users\Jihwan\Desktop\Dev\Embedded\Freescale_마이크로프로세서실험\Projects\2015312911_김지환_실습6_코드_1\bin\Ram_Application.abs"
+
+*********************************************************************************************
+TARGET SECTION
+---------------------------------------------------------------------------------------------
+Processor   : Freescale HC12
+Memory Model: SMALL
+File Format : ELF\DWARF 2.0
+Linker      : SmartLinker V-5.0.52 Build 15249, Sep  7 2015
+
+*********************************************************************************************
+FILE SECTION
+---------------------------------------------------------------------------------------------
+rtshc12.c.o (ansis.lib)                 Model: SMALL,         Lang: ANSI-C,        Compiler Version: ANSI-C/cC++ Compiler for HC12 V-5.0.46 Build 15249, Sep  7 2015
+START12.C.o                             Model: SMALL,         Lang: ANSI-C,        Compiler Version: ANSI-C/cC++ Compiler for HC12 V-5.0.46 Build 15249, Sep  7 2015
+main.c.o                                Model: SMALL,         Lang: ANSI-C,        Compiler Version: ANSI-C/cC++ Compiler for HC12 V-5.0.46 Build 15249, Sep  7 2015
+per_DP256_K79X.c.o                      Model: SMALL,         Lang: ANSI-C,        Compiler Version: ANSI-C/cC++ Compiler for HC12 V-5.0.46 Build 15249, Sep  7 2015
+sci.c.o                                 Model: SMALL,         Lang: ANSI-C,        Compiler Version: ANSI-C/cC++ Compiler for HC12 V-5.0.46 Build 15249, Sep  7 2015
+
+*********************************************************************************************
+STARTUP SECTION
+---------------------------------------------------------------------------------------------
+Entry point: 0x2029 (_Startup)
+_startupData is allocated at 0x2039 and uses 11 Bytes
+extern struct _tagStartup {
+  unsigned flags          0
+  _PFunc   main           0x204F    (main)
+  long     stackOffset    0x1210
+  unsigned nofZeroOut     1
+  _Range   pZeroOut       0x1000     17
+  _Copy    *toCopyDownBeg 0x2175
+} _startupData;
+
+*********************************************************************************************
+SECTION-ALLOCATION SECTION
+Section Name                    Size  Type     From       To       Segment
+---------------------------------------------------------------------------------------------
+.init                             57     R     0x2000     0x2038   MY_PSEUDO_ROM
+.startData                        15     R     0x2039     0x2047   MY_PSEUDO_ROM
+.rodata1                           7     R     0x2048     0x204E   MY_PSEUDO_ROM
+.text                             83     R     0x204F     0x20A1   MY_PSEUDO_ROM
+.copy                              2     R     0x2175     0x2176   MY_PSEUDO_ROM
+.abs_section_0                    48   N/I        0x0       0x2F   .absSeg0
+.abs_section_30                    4   N/I       0x30       0x33   .absSeg1
+.abs_section_34                   12   N/I       0x34       0x3F   .absSeg2
+.abs_section_40                   64   N/I       0x40       0x7F   .absSeg3
+.abs_section_80                   32   N/I       0x80       0x9F   .absSeg4
+.abs_section_a0                   40   N/I       0xA0       0xC7   .absSeg5
+.abs_section_c8                    8   N/I       0xC8       0xCF   .absSeg6
+.abs_section_d0                    8   N/I       0xD0       0xD7   .absSeg7
+.abs_section_d8                    8   N/I       0xD8       0xDF   .absSeg8
+.abs_section_e0                    8   N/I       0xE0       0xE7   .absSeg9
+.abs_section_e8                    8   N/I       0xE8       0xEF   .absSeg10
+.abs_section_f0                    8   N/I       0xF0       0xF7   .absSeg11
+.abs_section_f8                    8   N/I       0xF8       0xFF   .absSeg12
+.abs_section_100                  16   N/I      0x100      0x10F   .absSeg13
+.abs_section_110                  12   N/I      0x110      0x11B   .absSeg14
+.abs_section_120                  32   N/I      0x120      0x13F   .absSeg15
+.abs_section_140                  64   N/I      0x140      0x17F   .absSeg16
+.abs_section_180                  64   N/I      0x180      0x1BF   .absSeg17
+.abs_section_1c0                  64   N/I      0x1C0      0x1FF   .absSeg18
+.abs_section_200                  64   N/I      0x200      0x23F   .absSeg19
+.abs_section_240                  48   N/I      0x240      0x26F   .absSeg20
+.abs_section_280                  64   N/I      0x280      0x2BF   .absSeg21
+.common                           17   R/W     0x1000     0x1010   MY_RAM
+RUNTIME                          211     R     0x20A2     0x2174   MY_PSEUDO_ROM
+.stack                           512   R/W     0x1011     0x1210   MY_RAM
+
+Summary of section sizes per section type:
+READ_ONLY (R):         177 (dec:      375)
+READ_WRITE (R/W):      211 (dec:      529)
+NO_INIT (N/I):         2AC (dec:      684)
+
+*********************************************************************************************
+VECTOR-ALLOCATION SECTION
+    Address     InitValue   InitFunction
+---------------------------------------------------------------------------------------------
+
+*********************************************************************************************
+OBJECT-ALLOCATION SECTION
+     Name               Module                 Addr   hSize   dSize     Ref    Section   RLIB
+---------------------------------------------------------------------------------------------
+MODULE:                 -- rtshc12.c.o (ansis.lib) --
+- PROCEDURES:
+     _lDivMod                                  20A2      BE     190       1   RUNTIME     
+     _LDIVU                                    2160       E      14       1   RUNTIME     
+     _ILSEXT                                   216E       7       7       1   RUNTIME     
+- VARIABLES:
+MODULE:                 -- START12.C.o --
+- PROCEDURES:
+     Init                                      2000      29      41       1   .init       
+     _Startup                                  2029      10      16       0   .init       
+- VARIABLES:
+     _startupData                              2039       B      11       5   .startData  
+- LABELS:
+     __SEG_END_SSTACK                          1211       0       0       1               
+MODULE:                 -- main.c.o --
+- PROCEDURES:
+     main                                      204F      24      36       0   .text       
+- VARIABLES:
+     STRING.SCI.OK.1                           2048       7       7       1   .rodata1    
+     RX                                        1000       B      11       1   .common     
+MODULE:                 -- per_DP256_K79X.c.o --
+- PROCEDURES:
+- VARIABLES:
+     Regs                                         0      30      48       2   .abs_section_0
+     Page                                        30       4       4       0   .abs_section_30
+     Crg                                         34       C      12       0   .abs_section_34
+     Tim0                                        40      40      64       0   .abs_section_40
+     Atd0                                        80      20      32       0   .abs_section_80
+     Pwm                                         A0      28      40       0   .abs_section_a0
+     Sci0                                        C8       8       8       4   .abs_section_c8
+     Sci1                                        D0       8       8       0   .abs_section_d0
+     Spi0                                        D8       8       8       0   .abs_section_d8
+     Iic                                         E0       8       8       0   .abs_section_e0
+     Bdlc                                        E8       8       8       0   .abs_section_e8
+     Spi1                                        F0       8       8       0   .abs_section_f0
+     Spi2                                        F8       8       8       0   .abs_section_f8
+     Flash                                      100      10      16       0   .abs_section_100
+     Eeprom                                     110       C      12       0   .abs_section_110
+     Atd1                                       120      20      32       0   .abs_section_120
+     Can0                                       140      40      64       0   .abs_section_140
+     Can1                                       180      40      64       0   .abs_section_180
+     Can2                                       1C0      40      64       0   .abs_section_1c0
+     Can3                                       200      40      64       0   .abs_section_200
+     Pim                                        240      30      48       2   .abs_section_240
+     Can4                                       280      40      64       0   .abs_section_280
+MODULE:                 -- sci.c.o --
+- PROCEDURES:
+     init_sci0                                 2073      28      40       1   .text       
+     write_sci0                                209B       7       7       1   .text       
+- VARIABLES:
+     txbuffer_sci0                             100B       2       2       1   .common     
+     txoffset_sci0                             100D       2       2       1   .common     
+     rxbuffer_sci0                             100F       2       2       1   .common     
+
+*********************************************************************************************
+MODULE STATISTIC
+  Name                                      Data   Code  Const
+---------------------------------------------------------------------------------------------
+  rtshc12.c.o (ansis.lib)                      0    211      0
+  START12.C.o                                  0     57      0
+  main.c.o                                    11     36      7
+  per_DP256_K79X.c.o                         684      0      0
+  sci.c.o                                      6     47      0
+  other                                      512     15      2
+
+*********************************************************************************************
+SECTION USE IN OBJECT-ALLOCATION SECTION
+---------------------------------------------------------------------------------------------
+SECTION: ".text"
+  main init_sci0 write_sci0 
+SECTION: ".init"
+  Init _Startup 
+SECTION: ".rodata1"
+  STRING.SCI.OK.1 
+SECTION: ".common"
+  RX txbuffer_sci0 txoffset_sci0 rxbuffer_sci0 
+SECTION: "RUNTIME"
+  _lDivMod _LDIVU _ILSEXT 
+SECTION: ".abs_section_0"
+  Regs 
+SECTION: ".abs_section_30"
+  Page 
+SECTION: ".abs_section_34"
+  Crg 
+SECTION: ".abs_section_40"
+  Tim0 
+SECTION: ".abs_section_80"
+  Atd0 
+SECTION: ".abs_section_a0"
+  Pwm 
+SECTION: ".abs_section_c8"
+  Sci0 
+SECTION: ".abs_section_d0"
+  Sci1 
+SECTION: ".abs_section_d8"
+  Spi0 
+SECTION: ".abs_section_e0"
+  Iic 
+SECTION: ".abs_section_e8"
+  Bdlc 
+SECTION: ".abs_section_f0"
+  Spi1 
+SECTION: ".abs_section_f8"
+  Spi2 
+SECTION: ".abs_section_100"
+  Flash 
+SECTION: ".abs_section_110"
+  Eeprom 
+SECTION: ".abs_section_120"
+  Atd1 
+SECTION: ".abs_section_140"
+  Can0 
+SECTION: ".abs_section_180"
+  Can1 
+SECTION: ".abs_section_1c0"
+  Can2 
+SECTION: ".abs_section_200"
+  Can3 
+SECTION: ".abs_section_240"
+  Pim 
+SECTION: ".abs_section_280"
+  Can4 
+
+*********************************************************************************************
+OBJECT LIST SORTED BY ADDRESS
+     Name                                      Addr   hSize   dSize     Ref    Section   RLIB
+---------------------------------------------------------------------------------------------
+     Regs                                         0      30      48       2   .abs_section_0
+     Page                                        30       4       4       0   .abs_section_30
+     Crg                                         34       C      12       0   .abs_section_34
+     Tim0                                        40      40      64       0   .abs_section_40
+     Atd0                                        80      20      32       0   .abs_section_80
+     Pwm                                         A0      28      40       0   .abs_section_a0
+     Sci0                                        C8       8       8       4   .abs_section_c8
+     Sci1                                        D0       8       8       0   .abs_section_d0
+     Spi0                                        D8       8       8       0   .abs_section_d8
+     Iic                                         E0       8       8       0   .abs_section_e0
+     Bdlc                                        E8       8       8       0   .abs_section_e8
+     Spi1                                        F0       8       8       0   .abs_section_f0
+     Spi2                                        F8       8       8       0   .abs_section_f8
+     Flash                                      100      10      16       0   .abs_section_100
+     Eeprom                                     110       C      12       0   .abs_section_110
+     Atd1                                       120      20      32       0   .abs_section_120
+     Can0                                       140      40      64       0   .abs_section_140
+     Can1                                       180      40      64       0   .abs_section_180
+     Can2                                       1C0      40      64       0   .abs_section_1c0
+     Can3                                       200      40      64       0   .abs_section_200
+     Pim                                        240      30      48       2   .abs_section_240
+     Can4                                       280      40      64       0   .abs_section_280
+     RX                                        1000       B      11       1   .common     
+     txbuffer_sci0                             100B       2       2       1   .common     
+     txoffset_sci0                             100D       2       2       1   .common     
+     rxbuffer_sci0                             100F       2       2       1   .common     
+     Init                                      2000      29      41       1   .init       
+     _Startup                                  2029      10      16       0   .init       
+     STRING.SCI.OK.1                           2048       7       7       1   .rodata1    
+     main                                      204F      24      36       0   .text       
+     init_sci0                                 2073      28      40       1   .text       
+     write_sci0                                209B       7       7       1   .text       
+     _lDivMod                                  20A2      BE     190       1   RUNTIME     
+     _LDIVU                                    2160       E      14       1   RUNTIME     
+     _ILSEXT                                   216E       7       7       1   RUNTIME     
+
+*********************************************************************************************
+UNUSED-OBJECTS SECTION
+---------------------------------------------------------------------------------------------
+NOT USED PROCEDURES
+rtshc12.c.o (ansis.lib):
+  _BSHL _BSHRS _BSHRU _BDIVMODU _BDIVMODS _ISHL _ISHRU _ISHRS _LSHL _LSHRU 
+  _LSHRS _LADD _LSUB _LAND _LOR _LXOR _LCMP _LCMP_P _LCMP_PP _LNEG _LCOM _LINC 
+  _LDEC _LMUL _LMULU16x32 _LMULS16x32 _NEG_P _LDIVS _LMODU _LMODS _COPY 
+  _CASE_DIRECT _CASE_DIRECT_BYTE _CASE_CHECKED _CASE_CHECKED_BYTE _CASE_SEARCH 
+  _CASE_SEARCH_BYTE _CASE_SEARCH_8 _CASE_SEARCH_8_BYTE _FCALL _FPCMP 
+sci.c.o:
+  sci0_handler 
+NOT USED VARIABLES
+rtshc12.c.o (ansis.lib):
+  _PowOfTwo_8 _PowOfTwo_16 _PowOfTwo_32 errno 
+
+*********************************************************************************************
+COPYDOWN SECTION
+---------------------------------------------------------------------------------------------
+------- ROM-ADDRESS: 0x2175 ---- SIZE       2 ---
+Filling bytes inserted
+ 0000
+
+*********************************************************************************************
+OBJECT-DEPENDENCIES SECTION
+---------------------------------------------------------------------------------------------
+Init                      USES _startupData 
+_Startup                  USES _startupData __SEG_END_SSTACK Init 
+main                      USES RX init_sci0 Regs Pim STRING.SCI.OK.1 
+                                write_sci0 
+init_sci0                 USES _ILSEXT _LDIVU Sci0 txoffset_sci0 rxbuffer_sci0 
+write_sci0                USES txbuffer_sci0 Sci0 
+_LDIVU                    USES _lDivMod 
+
+*********************************************************************************************
+DEPENDENCY TREE
+*********************************************************************************************
+ main and _Startup Group
+ | 
+ +- main                
+ |  | 
+ |  +- init_sci0           
+ |  |  | 
+ |  |  +- _ILSEXT             
+ |  |  |    
+ |  |  +- _LDIVU              
+ |  |     | 
+ |  |     +- _lDivMod            
+ |  |          
+ |  +- write_sci0          
+ |       
+ +- _Startup            
+    | 
+    +- Init                
+         
+*********************************************************************************************
+STATISTIC SECTION
+---------------------------------------------------------------------------------------------
+
+ExeFile:
+--------
+Number of blocks to be downloaded: 6
+Total size of all blocks to be downloaded: 375
+

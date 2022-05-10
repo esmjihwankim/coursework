@@ -1,0 +1,8 @@
+Data:1 < ADDXPR ONLY_ADD_IF_NEW "txoffset_sci0"
+Data:1 < ADDXPR ONLY_ADD_IF_NEW "txbuffer_sci0"
+Data:1 < ADDXPR ONLY_ADD_IF_NEW "j"
+Data:1 < ADDXPR ONLY_ADD_IF_NEW "rxbuffer_sci0"
+Data:1 < ADDXPR ONLY_ADD_IF_NEW "Sci0.scidrl.byte"
+Data:1 < ADDXPR ONLY_ADD_IF_NEW "status"
+Data:1 < ADDXPR ONLY_ADD_IF_NEW "Sci0.scisr1.byte"
+Data:2 < ADDXPR ONLY_ADD_IF_NEW "br"
