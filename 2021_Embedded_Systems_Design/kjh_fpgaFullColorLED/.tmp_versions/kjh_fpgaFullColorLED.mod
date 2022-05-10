@@ -1,0 +1,2 @@
+/cygdrive/c/AndroXStudio/workspace/kjh_fpgaFullColorLED/kjh_fpgaFullColorLED.ko
+/cygdrive/c/AndroXStudio/workspace/kjh_fpgaFullColorLED/kjh_fpgaFullColorLED.o

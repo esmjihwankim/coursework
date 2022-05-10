@@ -1,0 +1,79 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    tools:context="edu.skku.baseled.MainActivity" >
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_marginTop="10dp"
+        android:layout_weight="1.17"
+        android:gravity="center|top"
+        android:orientation="vertical" >
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:layout_weight="0.00"
+            android:gravity="center|fill_horizontal"
+            android:orientation="horizontal" >
+
+            <Button
+                android:id="@+id/stopButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stop Music" />
+
+            <Button
+                android:id="@+id/plusButton"
+                android:layout_width="38dp"
+                android:layout_height="wrap_content"
+                android:text="+" />
+
+            <Button
+                android:id="@+id/minusButton"
+                android:layout_width="39dp"
+                android:layout_height="wrap_content"
+                android:text="-" />
+
+            <Button
+                android:id="@+id/photoSwapButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_weight="0.35"
+                android:text="Photo\nSwap" />
+        </LinearLayout>
+
+         <LinearLayout
+             android:layout_width="match_parent"
+             android:layout_height="wrap_content"
+             android:layout_marginTop="10dp"
+             android:layout_weight="0.00"
+             android:gravity="center|fill_horizontal"
+             android:orientation="horizontal" >
+
+             <ImageView
+                 android:id="@+id/imageView"
+                 android:layout_width="wrap_content"
+                 android:layout_height="73dp"
+                 android:layout_weight="0.10" />
+             	
+         </LinearLayout>
+
+         <ListView
+             android:id="@+id/musicListView"
+             android:layout_width="match_parent"
+             android:layout_height="wrap_content" >
+         </ListView>
+
+    </LinearLayout>
+
+</LinearLayout>
+            
+          
