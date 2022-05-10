@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: bc331dafd92b5234e8b7cdea78a399ef
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - m_MainManu: {instanceID: 0}
+  - m_Theory: {instanceID: 0}
+  - m_Quiz: {instanceID: 0}
+  - m_Modeling: {instanceID: 0}
+  - m_Grabbing: {instanceID: 0}
+  - m_Kidney: {fileID: 919132149155446097, guid: b83402e2899bb924f9f88e4a51df7b3e, type: 3}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

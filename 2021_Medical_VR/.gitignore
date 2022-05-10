@@ -1,0 +1,14 @@
+# 2021_Medical_VR
+
+.DS_Store
+.idea/
+venv/
+Library/
+Logs/
+Packages/
+ProjectSettings/
+Temp/
+UserSettings/
+
+
+
