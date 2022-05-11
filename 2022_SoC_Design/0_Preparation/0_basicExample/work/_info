@@ -1,0 +1,53 @@
+m255
+K4
+z2
+13
+!s112 1.1
+!i10d 8192
+!i10e 25
+!i10f 100
+cModel Technology
+dC:/intelFPGA/17.1
+vmy_xor
+Z0 !s110 1652236210
+!i10b 1
+!s100 YoDONnVA1_TX@mUoX79HC2
+IV8:BUGeY8@E`:XB>fKINi1
+Z1 VDg1SIo80bB@j0V0VzS_@n1
+Z2 dC:/Dev/HDL/basicExample
+w1652236094
+8C:/Dev/HDL/basicExample/myModule.v
+FC:/Dev/HDL/basicExample/myModule.v
+L0 3
+Z3 OV;L;10.5b;63
+r1
+!s85 0
+31
+Z4 !s108 1652236210.000000
+!s107 C:/Dev/HDL/basicExample/myModule.v|
+!s90 -reportprogress|300|-work|work|-stats=none|C:/Dev/HDL/basicExample/myModule.v|
+!i113 1
+Z5 o-work work
+Z6 tCvgOpt 0
+vmy_xor_TB
+R0
+!i10b 1
+!s100 _S`LW`z]0cmNNY762;P@=3
+IP<0<<l6DPg<66e4A2C:P`3
+R1
+R2
+w1652236103
+8C:/Dev/HDL/basicExample/testbench.v
+FC:/Dev/HDL/basicExample/testbench.v
+L0 5
+R3
+r1
+!s85 0
+31
+R4
+!s107 C:/Dev/HDL/basicExample/testbench.v|
+!s90 -reportprogress|300|-work|work|-stats=none|C:/Dev/HDL/basicExample/testbench.v|
+!i113 1
+R5
+R6
+nmy_xor_@t@b

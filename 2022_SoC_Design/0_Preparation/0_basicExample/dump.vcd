@@ -1,0 +1,31 @@
+$date
+	Wed May 11 12:35:23 2022
+$end
+$version
+	ModelSim Version 10.5b
+$end
+$timescale
+	1ns
+$end
+
+$scope module my_xor_TB $end
+$var reg 1 ! a $end
+$var reg 1 " b $end
+$var wire 1 # a_xor_b $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+0!
+0"
+0#
+$end
+#10
+1"
+1#
+#20
+1!
+0#
+#30
+0"
+1#
