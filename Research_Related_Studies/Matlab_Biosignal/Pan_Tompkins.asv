@@ -1,0 +1,20 @@
+%load('ECG_data.mat', 'ecg') 
+
+% Low-pass filter
+B_low = [1 zeros(1,5) -2 zeros(1,5) 1]/32; 
+A_low = [1 -2 1]; 
+ecg_low = filter(B_lp_1, A_lp_1, ecg);
+ecg_low = ecg_lp / max(ecg_lp); 
+
+% Highpass filter 
+B_high = -[1 zeros(1,15) -32 zeros(1,15) -1]; 
+A_high = [1 1]; 
+ecg_high = filter(B_hp_1, A_hp_1, ecg_lp); 
+ecg_high = ecg_hp / max(ecg_hp); 
+
+% Derivative filter
+B_der = [1 2 0 -2 -1] * FS/8;
+A_der = [1];
+
+figure('name', 'ECG Pan Tompkins') 
+plot(ecg_in)
