@@ -13,6 +13,7 @@ module adder
 wire [7:0] sum; 
 assign sum = A + B; 
 
+/*
 // register type requires begin/end block 
 // signals for the sensitivity list after '@ is separated by 'or' 
 reg [7:0] sum; 
@@ -20,6 +21,7 @@ always @(A or B)
 begin 
     sum = A+B; 
 end 
+*/
 
 // Y port requires assign keyword because it's a wire
 assign Y = sum; 

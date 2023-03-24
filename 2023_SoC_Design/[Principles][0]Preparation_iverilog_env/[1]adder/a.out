@@ -1,0 +1,53 @@
+#! /usr/bin/vvp
+:ivl_version "10.3 (stable)";
+:ivl_delay_selection "TYPICAL";
+:vpi_time_precision - 12;
+:vpi_module "system";
+:vpi_module "vhdl_sys";
+:vpi_module "v2005_math";
+:vpi_module "va_math";
+S_0x5620c664d2c0 .scope module, "test" "test" 2 3;
+ .timescale -9 -12;
+v0x5620c665eac0_0 .var "a", 7 0;
+v0x5620c665ebb0_0 .var "b", 7 0;
+v0x5620c665ec80_0 .net "y", 7 0, L_0x5620c6628f20;  1 drivers
+S_0x5620c664d440 .scope module, "u_adder" "adder" 2 24, 3 1 0, S_0x5620c664d2c0;
+ .timescale 0 0;
+    .port_info 0 /INPUT 8 "A"
+    .port_info 1 /INPUT 8 "B"
+    .port_info 2 /OUTPUT 8 "Y"
+L_0x5620c6628f20 .functor BUFZ 8, L_0x5620c665ed80, C4<00000000>, C4<00000000>, C4<00000000>;
+v0x5620c6617080_0 .net "A", 7 0, v0x5620c665eac0_0;  1 drivers
+v0x5620c665e7c0_0 .net "B", 7 0, v0x5620c665ebb0_0;  1 drivers
+v0x5620c665e8a0_0 .net "Y", 7 0, L_0x5620c6628f20;  alias, 1 drivers
+v0x5620c665e960_0 .net "sum", 7 0, L_0x5620c665ed80;  1 drivers
+L_0x5620c665ed80 .arith/sum 8, v0x5620c665eac0_0, v0x5620c665ebb0_0;
+    .scope S_0x5620c664d2c0;
+T_0 ;
+    %pushi/vec4 4, 0, 8;
+    %store/vec4 v0x5620c665eac0_0, 0, 8;
+    %pushi/vec4 2, 0, 8;
+    %store/vec4 v0x5620c665ebb0_0, 0, 8;
+    %delay 10000, 0;
+    %vpi_call 2 13 "$display", "A=%d, B=%d, Y=%d", v0x5620c665eac0_0, v0x5620c665ebb0_0, v0x5620c665ec80_0 {0 0 0};
+    %pushi/vec4 6, 0, 8;
+    %store/vec4 v0x5620c665eac0_0, 0, 8;
+    %pushi/vec4 3, 0, 8;
+    %store/vec4 v0x5620c665ebb0_0, 0, 8;
+    %delay 10000, 0;
+    %vpi_call 2 18 "$display", "A=%d, B=%d, Y=%d", v0x5620c665eac0_0, v0x5620c665ebb0_0, v0x5620c665ec80_0 {0 0 0};
+    %vpi_call 2 20 "$finish" {0 0 0};
+    %end;
+    .thread T_0;
+    .scope S_0x5620c664d2c0;
+T_1 ;
+    %vpi_call 2 33 "$dumpfile", "test_adder.vcd" {0 0 0};
+    %vpi_call 2 37 "$dumpvars", 32'sb00000000000000000000000000000000, S_0x5620c664d2c0 {0 0 0};
+    %end;
+    .thread T_1;
+# The file index is used to find the file name in the following table.
+:file_names 4;
+    "N/A";
+    "<interactive>";
+    "test.v";
+    "adder.v";
