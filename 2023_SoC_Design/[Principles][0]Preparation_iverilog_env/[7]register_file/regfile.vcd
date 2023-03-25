@@ -1,0 +1,127 @@
+$date
+	Sat Mar 25 19:26:50 2023
+$end
+$version
+	Icarus Verilog
+$end
+$timescale
+	1ns
+$end
+$scope module test $end
+$var wire 4 ! dout [3:0] $end
+$var reg 2 " addr [1:0] $end
+$var reg 1 # clock $end
+$var reg 4 $ din [3:0] $end
+$var reg 1 % resetn $end
+$var reg 1 & we $end
+$scope module u_regfile $end
+$var wire 2 ' ADDR [1:0] $end
+$var wire 1 # CLK $end
+$var wire 4 ( DIN [3:0] $end
+$var wire 1 % RSTn $end
+$var wire 1 & WE $end
+$var reg 4 ) DOUT [3:0] $end
+$upscope $end
+$upscope $end
+$enddefinitions $end
+#0
+$dumpvars
+b0 )
+bx (
+bx '
+0&
+0%
+bx $
+0#
+bx "
+b0 !
+$end
+#10
+1#
+#20
+0#
+#30
+1#
+#40
+0#
+#50
+1#
+#60
+0#
+#70
+1#
+#80
+0#
+#90
+1#
+#100
+1%
+0#
+#110
+1&
+b1 $
+b1 (
+b0 "
+b0 '
+1#
+#120
+0#
+#130
+b10 $
+b10 (
+b1 "
+b1 '
+1#
+#140
+0#
+#150
+b11 $
+b11 (
+b10 "
+b10 '
+1#
+#160
+0#
+#170
+b1 !
+b1 )
+b0 "
+b0 '
+0&
+1#
+#180
+0#
+#190
+b10 !
+b10 )
+b1 "
+b1 '
+1#
+#200
+0#
+#210
+b11 !
+b11 )
+b10 "
+b10 '
+1#
+#220
+0#
+#230
+1#
+#240
+0#
+#250
+1#
+#260
+0#
+#270
+1#
+#280
+0#
+#290
+1#
+#300
+0#
+#310
+1#

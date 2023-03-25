@@ -1,0 +1,1 @@
+iverilog test.v alu.v barrel_shifter.v subtractor.v adder.v 
