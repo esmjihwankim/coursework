@@ -159,6 +159,9 @@ module DMAC_ENGINE
                     state_n                 = S_WDATA;
                     dst_addr_n              = dst_addr + 'd64;
                     wcnt_n                  = awlen_o;
+                    // --------------------------------------------
+                    oscnt_n                 = oscnt + 'd1; // outstanding count incremented by 1
+                    // --------------------------------------------
                     if (cnt>='d64) begin
                         cnt_n                   = cnt - 'd64;
                     end
@@ -170,13 +173,18 @@ module DMAC_ENGINE
             S_WDATA: begin
                 wvalid                  = 1'b1;
                 wlast                   = (wcnt==4'd0);
+                if (awready_i) begin
+                    
+                end 
 
                 if (wready_i) begin
                     fifo_rden               = 1'b1;
 
                     if (wlast) begin
                         if (cnt==16'd0) begin
+                            //--------------------------------------------
                             state_n                 = S_WAIT; // modified for added wait state
+                            //--------------------------------------------
                         end
                         else begin
                             state_n                 = S_RREQ;
@@ -187,34 +195,33 @@ module DMAC_ENGINE
                     end
                 end
             end
-            // FIXME: implement S_WAIT state for project 1
+            // TODO: implement S_WAIT state for project 1
             S_WAIT: begin 
                 if(oscnt == 'd0)
                     state_n = S_IDLE;
             end 
-            // FIXME --------------------------------------
+            // TODO --------------------------------------
         endcase
     end
 
-    // FIXME: implement outstanding_wr_cnt
+    // TODO : implement outstanding_wr_cnt
     always_ff @(posedge clk) begin 
         if(!rst_n) begin
             oscnt <= 4'd0; 
         end 
         else begin
-            if(bvalid_i == 'b1) begin
+            // increment 
+            if(bvalid_i == 'b1) begin 
                 if(bready_o == 'b1) begin
-                   oscnt <= 
+                   oscnt_n <= oscnt + 'd1;
                 end
             end 
-            else begin
-                oscnt_n <= oscnt
-            end 
+            oscnt <= oscnt_n;
         end 
     end 
-    // FIXME------------------------------
-
-
+    // TODO------------------------------
+    
+    
     DMAC_FIFO   u_fifo
     (
         .clk                        (clk),
