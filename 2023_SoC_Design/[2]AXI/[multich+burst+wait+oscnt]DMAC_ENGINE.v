@@ -2,6 +2,7 @@
 //
 // Authors:
 // - Jungrae Kim <dale40@skku.edu>
+// - Jihwan Kim 
 
 module DMAC_ENGINE
 (
