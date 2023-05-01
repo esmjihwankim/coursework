@@ -2,7 +2,6 @@
 //
 // Authors:
 // - Jungrae Kim <dale40@skku.edu>
-// - Jihwan Kim 
 
 module DMAC_ENGINE
 (
@@ -66,7 +65,10 @@ module DMAC_ENGINE
     reg     [31:0]              dst_addr,   dst_addr_n;
     reg     [15:0]              cnt,        cnt_n;
     reg     [3:0]               wcnt,       wcnt_n;
-    reg     [3:0]               oscnt,      oscnt_n;
+    // -----------variable for oscnt -------------------------------
+    reg     [3:0]               oscnt,      oscnt_n;   
+    reg                         flag; 
+    // ------------------------------------------------------------
 
     reg                         arvalid,
                                 rready,
@@ -160,9 +162,9 @@ module DMAC_ENGINE
                     state_n                 = S_WDATA;
                     dst_addr_n              = dst_addr + 'd64;
                     wcnt_n                  = awlen_o;
-                    // --------------------------------------------
-                    oscnt_n                 = oscnt + 'd1; // outstanding count incremented by 1
-                    // --------------------------------------------
+                    //--------------------------------------------------
+                    flag                    = 1'b1;             // increment outstanding count
+                    //--------------------------------------------------
                     if (cnt>='d64) begin
                         cnt_n                   = cnt - 'd64;
                     end
@@ -174,18 +176,15 @@ module DMAC_ENGINE
             S_WDATA: begin
                 wvalid                  = 1'b1;
                 wlast                   = (wcnt==4'd0);
-                if (awready_i) begin
-                    
-                end 
-
+                // ------------------------------------------------------
+                flag                    = 1'b0;   // increment off 
+                // ------------------------------------------------------
                 if (wready_i) begin
                     fifo_rden               = 1'b1;
 
                     if (wlast) begin
                         if (cnt==16'd0) begin
-                            //--------------------------------------------
-                            state_n                 = S_WAIT; // modified for added wait state
-                            //--------------------------------------------
+                            state_n                 = S_WAIT; // modification to switch to wait 
                         end
                         else begin
                             state_n                 = S_RREQ;
@@ -196,33 +195,34 @@ module DMAC_ENGINE
                     end
                 end
             end
-            // TODO: implement S_WAIT state for project 1
-            S_WAIT: begin 
-                if(oscnt == 'd0)
+            // FIXME: implement S_WAIT state for project 1i
+            S_WAIT: begin
+                if (oscnt == 4'd0) begin
                     state_n = S_IDLE;
+                end 
             end 
-            // TODO --------------------------------------
         endcase
     end
 
-    // TODO : implement outstanding_wr_cnt
+    // FIXME: implement outstanding_wr_cnt
     always_ff @(posedge clk) begin 
         if(!rst_n) begin
             oscnt <= 4'd0; 
         end 
         else begin
-            // increment 
-            if(bvalid_i == 'b1) begin 
-                if(bready_o == 'b1) begin
-                   oscnt_n <= oscnt + 'd1;
+            if(flag == 'b1)begin    // when REDAY == 0 increment oscnt
+                oscnt <= oscnt + 4'd1;    
+            end 
+            if(bvalid_i == 'b1)begin    
+                if(bready_o == 'b1)begin    // when VALID & READY decrement oscnt
+                    oscnt <= oscnt - 4'd1;    
                 end
             end 
-            oscnt <= oscnt_n;
-        end 
-    end 
-    // TODO------------------------------
-    
-    
+        end            
+    end
+
+
+
     DMAC_FIFO   u_fifo
     (
         .clk                        (clk),
@@ -263,4 +263,3 @@ module DMAC_ENGINE
     assign  rready_o                = rready & !fifo_full;
 
 endmodule
-
