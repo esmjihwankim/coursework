@@ -95,7 +95,6 @@ module DMAC_ARBITER
             end else begin
                 cnt = 2'b0;
                 if (!fifo_empty[cnt]) begin
-
                     $display("data : %d", fifo_empty[cnt]);
                     // data를 꺼내야지
                     fifo_rden[cnt] <= 1'b1;
@@ -116,7 +115,6 @@ module DMAC_ARBITER
                 end else begin
                     dst_valid_o <= 1'b0;
                 end
-                       
             end
         end
     end 
@@ -141,6 +139,8 @@ module DMAC_ARBITER
                 end else begin
                     src_ready_o[j] = 1'b0;
                 end
+            end else begin 
+                // do nothing 
             end
         end
     end
