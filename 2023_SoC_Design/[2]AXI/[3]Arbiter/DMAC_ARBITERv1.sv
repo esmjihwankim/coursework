@@ -59,7 +59,7 @@ module DMAC_ARBITER
             // OUTPUT:: src_ready_o = 1
             S_READ: begin    // signals ready to receive and fill buffers
                 for(j=0; j<N_MASTER; j=j+1) begin
-                    if(src_valid_i[j] == 1'b0) begin
+                    if(src_valid_i[j]) begin
                         src_ready_o[j] = 1'b1;
                     end
                 end
@@ -78,22 +78,22 @@ module DMAC_ARBITER
             end
             // send everything sequentially 
             S_WRITE: begin // OUTPUT:: 
-                if(buffer_full[0] & dst_valid_o & dst_ready_i) begin
+                if(buffer_full[0] && dst_valid_o && dst_ready_i) begin
                     dst_data_o = buffer[0]; 
                     buffer_full[0] = 1'b0;
-                end else if (buffer_full[1] & dst_valid_o & dst_ready_i) begin
+                end else if(buffer_full[1] && dst_valid_o && dst_ready_i) begin
                     dst_data_o = buffer[1];
                     buffer_full[1] = 1'b0;
-                end else if (buffer_full[2] & dst_valid_o & dst_ready_i) begin
+                end else if(buffer_full[2] && dst_valid_o && dst_ready_i) begin
                     dst_data_o = buffer[2];
                     buffer_full[2] = 1'b0;
-                end else if (buffer_full[3] & dst_valid_o & dst_ready_i) begin
+                end else if(buffer_full[3] && dst_valid_o && dst_ready_i) begin
                     dst_data_o = buffer[3];
                     buffer_full[3] = 1'b0;
                 end else begin
                 end
 
-                if(!buffer_full[0] & !buffer_full[1] & !buffer_full[2] & !buffer_full[3]) begin
+                if(!buffer_full[0] && !buffer_full[1] && !buffer_full[2] && !buffer_full[3]) begin
                     state_n = S_IDLE;
                 end else begin
                 end
