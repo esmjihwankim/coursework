@@ -66,6 +66,6 @@ module DMAC_TOP
     wire                        start_vec[N_CH];
     wire                        done_vec[N_CH];
 
-    // FIXME: implement DMAC pipelining
- 
+    /* FIXME: implement DMAC pipelining */
+    
 endmodule
