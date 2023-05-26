@@ -17,40 +17,41 @@ module DMAC_INITIATOR
     input    wire              start_i, 
     output   wire              done_o, 
 
+    // AMBA AXI interface  (AR Channel)
+    output   wire    [31:0]    araddr_o,    // start address 
+    output   wire    [3:0]     arlen_o,     // number of transfers 
+    output   wire    [2:0]     arsize_o,    // number of bytes per transfer 
+    output   wire    [1:0]     arburst_o,   // burst type 
+    output   wire              arvalid_o,
+    input    wire              arready_i,
+
+    // AMBA AXI interface  (R Channel)
+    input    wire    [31:0]    rdata_i,     // requested chunks of data    
+    input    wire    [1:0]     rresp_i,     // whether read succeeded
+    input    wire              rlast_i,     // whether last piece of data in burst
+    input    wire              rvalid_i,     
+    output   wire              rready_o,    
+
     // AMBA AXI interface (AW Channel)
-    output   wire    [31:0]    awaddr_o,
-    output   wire    [3:0]     awlen_o, 
-    output   wire    [2:0]     awsize_o, 
-    output   wire    [1:0]     awburst_o,
+    output   wire    [31:0]    awaddr_o,    // start address
+    output   wire    [3:0]     awlen_o,     // number of transfers 
+    output   wire    [2:0]     awsize_o,    // number of bytes per transfer
+    output   wire    [1:0]     awburst_o,   // burst type 
     output   wire              awvalid_o, 
     input    wire              awready_i,
 
     // AMBA AXI interface  (W Channel)
-    output   wire    [31:0]    wdata_o, 
-    output   wire    [3:0]     wstrb_o,
-    output   wire              wlast_o,
+    output   wire    [31:0]    wdata_o,     // chunks of data to write 
+    output   wire    [3:0]     wstrb_o,     // send in strobe 
+    output   wire              wlast_o,     // whether last piece of data in burst 
     output   wire              wvalid_o,
     input    wire              wready_i,
 
     // AMBA AXI interface  (B Channel)
     input    wire    [1:0]     bresp_i,
     input    wire              bvalid_i,
-    output   wire              bready_o,
+    output   wire              bready_o 
 
-    // AMBA AXI interface  (AR Channel)
-    output   wire    [31:0]    araddr_o, 
-    output   wire    [3:0]     arlen_o,
-    output   wire    [2:0]     arsize_o, 
-    output   wire    [1:0]     arburst_o,
-    output   wire              arvalid_o,
-    input    wire              arready_i,
-
-    // AMBA AXI interface  (R Channel)
-    input    wire    [31:0]    rdata_i,
-    input    wire    [1:0]     rresp_i, 
-    input    wire              rlast_i,
-    input    wire              rvalid_i,
-    output   wire              rready_o
 );
 
     /* FIXME: Write your code here (You may use FSM implementation here) */ 
@@ -84,6 +85,20 @@ module DMAC_INITIATOR
     
     wire    [31:0]      fifo_rdata;
     
+    
+    DMAC_FIFO    u_fifo
+    (
+        .clk           (clk),
+        .rst_n         (rst_n),
+        
+        .full_o         (fifo_full),
+        .wren_i         (fifo_wren), 
+        .wdata_i        (rdata_i), 
+
+        .empty_o        (fifo_empty),
+        .rden_i         (fifo_rden), 
+        .rdata_o        (fifo_rdata)
+    ); 
 
     // Register updates for each clock 
     always_ff @(posedge clk)
@@ -98,7 +113,7 @@ module DMAC_INITIATOR
         end else begin 
             state        <=    state_n; 
 
-            src_addr     <=    src_addr_n;
+            src_addr     <=    src_addr_n; 
             dst_addr     <=    dst_addr_n;
             cnt          <=    cnt_n; 
 
@@ -125,7 +140,34 @@ module DMAC_INITIATOR
         fifo_rden        =    1'b0; 
 
         case (state)
+            S_IDLE: begin
+            end
         endcase 
     end 
+
+    // Output Assignments 
+    assign arvalid_o    = arvalid;
+    assign araddr_o     = src_addr;
+    assign arlen_o      = (cnt >= 'd64) ? 4'hF : cnt[5:2]-4'h1; 
+    assign arsize_o     = 3'b010; 
+    assign arburst_o    = 2'b01; 
+    assign arvalid_o    = arvalid; 
+
+    assign rready       = rready & !fifo_full;
+    
+    assign awaddr_o     = dst_addr;
+    assign awlen_o      = (cnt >= 'd64) ? 4'hF : cnt[5:2]-4'h1; 
+    assign awsize_o     = 3'b010; 
+    assign awburst_o    = 2'b01;
+    assign awvalid_o    = awvalid;
+
+    assign wdata_o      = fifo_rdata; 
+    assign wstrb_o      = 4'b1111;
+    assign wlast_o      = wlast;
+    assign wvalid_o     = wvalid;
+
+    assign bready_o     = 1'b1; 
+
+    assign done_o       = done;
 
 endmodule
