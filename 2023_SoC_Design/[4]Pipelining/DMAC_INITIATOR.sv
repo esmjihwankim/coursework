@@ -100,6 +100,8 @@ module DMAC_INITIATOR
         .rdata_o        (fifo_rdata)
     ); 
 
+
+
     // Register updates for each clock 
     always_ff @(posedge clk)
         if(!rst_n) begin
@@ -141,6 +143,69 @@ module DMAC_INITIATOR
 
         case (state)
             S_IDLE: begin
+                done          = 1'b1; 
+                if(start_i & byte_len_i != 16'd0) begin 
+                    src_addr_n           = src_addr_i; 
+                    dst_addr_n           = dst_addr_i; 
+                    cnt_n                = byte_len_i; 
+
+                    state_n              = S_RREQ; 
+                end
+            end
+            S_RREQ: begin
+                arvalid                  = 1'b1; 
+                if(arready_i) begin
+                    state_n              = S_RDATA; 
+                    src_addr_n           = src_addr + 'd64; 
+                end
+            end
+            S_RDATA: begin
+                rready                   = 1'b1; 
+                if(rvalid_i) begin
+                    fifo_wren            = 1'b1; 
+                    if(rlast_i) begin
+                        state_n          = S_WREQ; 
+                    end
+                end
+            end
+            S_WREQ: begin
+                awvalid                  = 1'b1; 
+                if(awready_i) begin
+                    state_n              = S_WDATA
+                    dst_addr_n           = dst_addr + d'64; 
+                    wcnt_n               = awlen_o; 
+                    flag                 = 1'b1; 
+                    if(cnt >= 'd64) begin 
+                        cnt_n            = cnt - 'd64; 
+                    end
+                    else begin
+                        cnt_n            = 'd0; 
+                    end
+                end
+            end
+            S_WDATA: begin
+                wvalid                   = 1'b1; 
+                wlast                    = (wcnt == 4'd0); 
+                flag                     = 1'b0; 
+                if(wready_i) begin
+                    fifo_rden            = 1'b1; 
+                    if(wlast) begin
+                        if(cnt == 16'd0) begin 
+                            state_n      = S_WAIT; 
+                        end
+                        else begin 
+                            state_n      = S_RREQ; 
+                        end
+                    end
+                    else begin 
+                        wcnt_n           = wcnt - 4'd1; 
+                    end
+                end
+            end
+            S_WAIT: begin
+                if(oscnt == 4'd0) begin
+                    state_n              = S_IDLE; 
+                end
             end
         endcase 
     end 
