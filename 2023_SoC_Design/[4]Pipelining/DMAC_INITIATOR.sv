@@ -54,7 +54,6 @@ module DMAC_INITIATOR
 );
 
     /* FIXME: Write your code here (You may use FSM implementation here) */ 
-
     localparam          S_IDLE    = 2'd0,
                         S_BUSY    = 2'd1,
                         S_WAIT    = 2'd3; 
@@ -73,12 +72,9 @@ module DMAC_INITIATOR
                         wlast,
                         done;
 
-    wire                fifo_full,
-                        fifo_empty;
-    reg                 fifo_wren,
-                        fifo_rden;
-    wire    [31:0]      fifo_rdata;
-
+    /********************************************************/
+    /************************ CFG  **************************/
+    /********************************************************/
     /* Register updates for each clock */ 
     always_ff @(posedge clk)
         if(!rst_n) begin
@@ -99,21 +95,17 @@ module DMAC_INITIATOR
             wcnt         <=    wcnt_n; 
         end
 
+    /********************************************************/
+    /************************ FSM  **************************/
+    /********************************************************/
     /*  Finite State Machine for Initiator  */
     always_comb begin 
         state_n          =    state; 
         
-        src_addr_n       =    src_addr;
-        dst_addr_n       =    dst_addr;
-        cnt_n            =    cnt;
-        wcnt_n           =    wcnt;
-
-        arvalid          =    1'b0;
-        rready           =    1'b0;
-        awvalid          =    1'b0; 
-        wvalid           =    1'b0;
-        wlast            =    1'b0;
-        done             =    1'b0; 
+        src_addr_n       =    src_addr; 
+        dst_addr_n       =    dst_addr; 
+        cnt_n            =    cnt; 
+        wcnt_n           =    wcnt; 
 
         case (state)
             // Start operation when configuration register (CFG) set 
@@ -128,45 +120,118 @@ module DMAC_INITIATOR
                 end
             end
             
-            // Send AR request                                                       
+            // Start the pipelining by sending an AR request                                                       
             S_BUSY: begin
-                arvalid                  = 1'b1; 
-                if(arready_i) begin
-                    src_addr_n           = src_addr + 'd64; 
-                end
+                
             end
             
-            // When Writing Done, write request will be received through B channel
+            // When Writing Done, a request will be received through B channel
             S_WAIT: begin
-                // TODO : Implement 
+                // TODO: Implement 
             end
         endcase 
     end 
 
+    /********************************************************/
+    /**************** Pipelining ****************************/
+    /********************************************************/
+    // Variable for Initiator to AW FIFO 
+    wire                init_to_aw_fifo_full;          // to sender 
+    wire                init_to_aw_fifo_empty;         // to receiver
+    reg                 init_to_aw_fifo_wren;          // from sender
+    reg                 init_to_aw_fifo_rden;          // from receiver
+    wire    [31:0]      init_to_aw_fifo_rdata;         // to receiver
+    // Variable for R to W FIFO
+    wire                r_to_w_fifo_full;              
+    wire                r_to_w_fifo_empty;             
+    wire                r_to_w_fifo_wren;              
+    reg                 r_to_w_fifo_rden;             
+    wire    [31:0]      r_to_w_fifo_rdata;            
+    // sample
+    wire                fifo_full;
+    wire                fifo_empty;
+    wire                fifo_rdata;
 
-    /* Output Assignments */
+    // flag 
+    reg                 arvalid_flag;
+    
+    /* FIFO for R to W Channel (Writing Data) */
+    DMAC_FIFO #(
+        .DEPTH_LG2               (4),
+        .DATA_WIDTH              ($bits(wdata_o))
+    ) u_r_to_w_fifo
+    (
+        .clk                    (clk),
+        .rst_n                  (rst_n), 
+
+        .full_o                 (r_to_w_fifo_full), 
+        .wren_i                 (r_to_w_fifo_wren),
+        .wdata_i                (rdata_i),
+
+        .empty_o                (r_to_w_fifo_empty),
+        .rden_i                 (r_to_w_fifo_rden),
+        .rdata_o                (wdata_o)
+    );
+
+    assign              r_to_w_fifo_wren = rvalid_i & !r_to_w_fifo_full;       // manipulate write enable 
+    assign              r_to_w_fifo_rden = wready_i & !r_to_w_fifo_empty;      // manipulate read enable 
+
+    /* Manipulation of declared FIFOs for pipelining */
+    always_ff @(posedge clk) begin
+        // Send out AR Request 
+        if(state == S_BUSY && !r_to_w_fifo_full) begin
+            arvalid             <= 1'b1; 
+            if(arvalid && arready_i) begin
+                arvalid <= 1'b0;
+            end
+        end 
+        else begin
+            arvalid             <= 1'b0;
+        end
+        // When R received, save generated AW data in FIFO 
+        
+
+        // When R received, save R data in FIFO  
+        if(state == S_BUSY && rvalid_i) begin
+            rready              <= 1'b1; 
+
+            if(rvalid_i && rready) begin
+                rready          <= 1'b0;
+            end
+        end
+        else begin
+            rready              <= 1'b0; 
+        end
+
+    end
+
+
+    /********************************************************/
+    /**************** Output Assignments ********************/
+    /********************************************************/
+    // AR Channel
     assign arvalid_o    = arvalid;
     assign araddr_o     = src_addr;
     assign arlen_o      = (cnt >= 'd64) ? 4'hF : cnt[5:2]-4'h1; 
     assign arsize_o     = 3'b010;                                  // 4 bytes per transfer
     assign arburst_o    = 2'b01;                                   // incremental
     assign arvalid_o    = arvalid; 
-
-    assign rready_o     = rready & !fifo_full;
-    
+    // R Channel
+    assign rready_o     = rready & !r_to_w_fifo_full; 
+    // AW Channel 
     assign awaddr_o     = dst_addr;
     assign awlen_o      = (cnt >= 'd64) ? 4'hF : cnt[5:2]-4'h1; 
     assign awsize_o     = 3'b010;                                  // 4 bytes per transfer
     assign awburst_o    = 2'b01;                                   // incremental
     assign awvalid_o    = awvalid;
-
-    assign wdata_o      = fifo_rdata; 
+    // W Channel
+    assign wdata_o      = r_to_w_fifo_rdata; 
     assign wstrb_o      = 4'b1111;                                 // all bytes within 4 bytes are valid
     assign wlast_o      = wlast;                    
     assign wvalid_o     = wvalid;
-
+    // B Channel 
     assign bready_o     = 1'b1; 
-
+    // Others
     assign done_o       = done;
 
 endmodule
