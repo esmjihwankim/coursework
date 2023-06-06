@@ -50,25 +50,14 @@ module DMAC_INITIATOR
     // AMBA AXI interface  (B Channel)
     input    wire    [1:0]     bresp_i,
     input    wire              bvalid_i,
-    output   wire              bready_o,
-
-    // FIFO for AW (Write Address) - Address
-    output   wire              fifo_awvalid_o,
-    input    wire              fifo_awready_i,
-    output   wire    [1:0]     fifo_awdata_o, 
-    
-    // FIFO for W (Write) - Data 
-    output   wire              fifo_wvalid_o,
-    output   wire              fifo_wready_i, 
-    output   wire    [1:0]     fifo_wdata_o
+    output   wire              bready_o
 );
 
     /* FIXME: Write your code here (You may use FSM implementation here) */ 
 
-    localparam          S_IDLE    = 3'd0,
-                        S_READ    = 3'd1,
-                        S_WRITE   = 3'd2,
-                        S_WAIT    = 3'd3; 
+    localparam          S_IDLE    = 2'd0,
+                        S_BUSY    = 2'd1,
+                        S_WAIT    = 2'd3; 
     
     reg     [2:0]       state,      state_n; 
     
@@ -82,7 +71,13 @@ module DMAC_INITIATOR
                         awvalid,
                         wvalid,
                         wlast,
-                        done; 
+                        done;
+
+    wire                fifo_full,
+                        fifo_empty;
+    reg                 fifo_wren,
+                        fifo_rden;
+    wire    [31:0]      fifo_rdata;
 
     /* Register updates for each clock */ 
     always_ff @(posedge clk)
@@ -104,7 +99,7 @@ module DMAC_INITIATOR
             wcnt         <=    wcnt_n; 
         end
 
-    // FSM 
+    /*  Finite State Machine for Initiator  */
     always_comb begin 
         state_n          =    state; 
         
@@ -120,11 +115,8 @@ module DMAC_INITIATOR
         wlast            =    1'b0;
         done             =    1'b0; 
 
-        fifo_wren        =    1'b0;
-        fifo_rden        =    1'b0; 
-
         case (state)
-            /* Start operation when configuration register (CFG) set                */
+            // Start operation when configuration register (CFG) set 
             S_IDLE: begin
                 done          = 1'b1; 
                 if(start_i & byte_len_i != 16'd0) begin 
@@ -132,26 +124,27 @@ module DMAC_INITIATOR
                     dst_addr_n           = dst_addr_i; 
                     cnt_n                = byte_len_i; 
 
-                    state_n              = S_READ; 
+                    state_n              = S_BUSY; 
                 end
             end
-            /* Send out Address Request.                                            */
-            /* When R received, save generated AW data in FIFO                      */ 
-            /* When R received, save R data in FIFO                                 */
-            S_RW: begin
+            
+            // Send AR request                                                       
+            S_BUSY: begin
                 arvalid                  = 1'b1; 
                 if(arready_i) begin
                     src_addr_n           = src_addr + 'd64; 
                 end
             end
-            /* When Writing Done, write request will be received through B channel  */
+            
+            // When Writing Done, write request will be received through B channel
             S_WAIT: begin
                 // TODO : Implement 
             end
         endcase 
     end 
 
-    // Output Assignments 
+
+    /* Output Assignments */
     assign arvalid_o    = arvalid;
     assign araddr_o     = src_addr;
     assign arlen_o      = (cnt >= 'd64) ? 4'hF : cnt[5:2]-4'h1; 
@@ -159,7 +152,7 @@ module DMAC_INITIATOR
     assign arburst_o    = 2'b01;                                   // incremental
     assign arvalid_o    = arvalid; 
 
-    assign rready       = rready & !fifo_full;
+    assign rready_o     = rready & !fifo_full;
     
     assign awaddr_o     = dst_addr;
     assign awlen_o      = (cnt >= 'd64) ? 4'hF : cnt[5:2]-4'h1; 
@@ -177,3 +170,4 @@ module DMAC_INITIATOR
     assign done_o       = done;
 
 endmodule
+// dmac_initiator written by Jihwan Kim
