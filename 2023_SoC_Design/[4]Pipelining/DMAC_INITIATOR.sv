@@ -72,20 +72,6 @@ module DMAC_INITIATOR
                         wlast,              
                         done;
 
-    // Variable for Initiator to AW FIFO 
-    wire                init_to_aw_fifo_full;          // to sender 
-    wire                init_to_aw_fifo_empty;         // to receiver
-    reg                 init_to_aw_fifo_wren;          // from sender
-    reg                 init_to_aw_fifo_rden;          // from receiver
-    wire    [31:0]      init_to_aw_fifo_rdata;         // to receiver
-    // Variable for R to W FIFO
-    wire                r_to_w_fifo_full;              
-    wire                r_to_w_fifo_empty;             
-    wire                r_to_w_fifo_wren;              
-    reg                 r_to_w_fifo_rden;             
-    wire    [31:0]      r_to_w_fifo_rdata;            
-
-
     /********************************************************/
     /************************ CFG  **************************/
     /********************************************************/
@@ -141,13 +127,14 @@ module DMAC_INITIATOR
                     src_addr_n     = src_addr + 'd64; 
                 end 
                 // R CHANNEL handshake incurs AW generation 
-                if(rvalid_i && rready) begin 
+                if(rvalid_i && rready && awvalid && awready_i) begin 
                     dst_addr_n     = dst_addr + 'd64; 
-                end
-                if(cnt >= 'd64) begin
-                    cnt_n          = cnt - 'd64;
-                end else begin
-                    cnt_n          = 'd0;
+                    if(cnt_n > 'd64) begin
+                        cnt_n      = cnt_n - 'd64;
+                    end 
+                    else begin 
+                        cnt_n      = 0; 
+                    end 
                 end
             end
             
@@ -161,7 +148,37 @@ module DMAC_INITIATOR
     /********************************************************/
     /**************** Pipelining ****************************/
     /********************************************************/
-    
+    // Variable for R to W FIFO
+    wire                r_to_w_fifo_full;              
+    wire                r_to_w_fifo_empty;             
+    wire                r_to_w_fifo_wren;              
+    wire                r_to_w_fifo_rden;             
+    wire    [31:0]      r_to_w_fifo_rdata;            
+
+    // Variable for Initiator to AW FIFO 
+    wire                init_to_aw_fifo_full;          // to sender 
+    wire                init_to_aw_fifo_empty;         // to receiver
+    wire                init_to_aw_fifo_wren;          // from sender
+    wire                init_to_aw_fifo_rden;          // from receiver
+    wire    [31:0]      init_to_aw_fifo_rdata;         // to receiver
+
+    /* FIFO for R to W Channel (Writing Data) */
+    DMAC_FIFO #(
+        .DEPTH_LG2               (4),
+        .DATA_WIDTH              ($bits(wdata_o))
+    ) u_r_to_w_fifo
+    (
+        .clk                    (clk),
+        .rst_n                  (rst_n), 
+
+        .full_o                 (r_to_w_fifo_full), 
+        .wren_i                 (r_to_w_fifo_wren),
+        .wdata_i                (rdata_i),
+
+        .empty_o                (r_to_w_fifo_empty),
+        .rden_i                 (r_to_w_fifo_rden),
+        .rdata_o                (r_to_w_fifo_rdata)
+    );
     /* FIFO for initiator to AW channel (generated Write Address)*/
     DMAC_FIFO #(
         .DEPTH_LG2               (4),
@@ -179,44 +196,30 @@ module DMAC_INITIATOR
         .rden_i                 (init_to_aw_fifo_rden),
         .rdata_o                (init_to_aw_fifo_rdata)
     );
-    /* FIFO for R to W Channel (Writing Data) */
-    DMAC_FIFO #(
-        .DEPTH_LG2               (4),
-        .DATA_WIDTH              ($bits(wdata_o))
-    ) u_r_to_w_fifo
-    (
-        .clk                    (clk),
-        .rst_n                  (rst_n), 
-
-        .full_o                 (r_to_w_fifo_full), 
-        .wren_i                 (r_to_w_fifo_wren),
-        .wdata_i                (rdata_i),
-
-        .empty_o                (r_to_w_fifo_empty),
-        .rden_i                 (r_to_w_fifo_rden),
-        .rdata_o                (wdata_o)
-    );
     
-    assign              init_to_aw_fifo_wren     = awvalid & !init_to_aw_fifo_full;        // manipulate write enable 
-    assign              init_to_aw_fifo_rden     = awready_i & !init_to_aw_fifo_empty;     // manipulate read enable
-    assign              r_to_w_fifo_wren         = rvalid_i & !r_to_w_fifo_full;       
-    assign              r_to_w_fifo_rden         = wvalid & !r_to_w_fifo_empty;      
-    
-
+    /* Control Wiring for FIFO                                                                             */
+    /* change in AW, R, W channel valid/ready automatically adjusts the FIFO read enable and write enables */
+    assign              r_to_w_fifo_wren         = rvalid_i & !r_to_w_fifo_full;      
+    assign              r_to_w_fifo_rden         = (wvalid & wready_i) & !r_to_w_fifo_empty; 
+    assign              init_to_aw_fifo_wren     = awvalid & !init_to_aw_fifo_full;                  // manipulate write enable 
+    assign              init_to_aw_fifo_rden     = 1'b0 & !init_to_aw_fifo_empty;                                             // manipulate read enable     
+      
     /* Manipulation of declared FIFOs for pipelining */
     always_ff @(posedge clk) begin
         // Send out AR Request 
         if(state == S_BUSY && !r_to_w_fifo_full) begin
-            arvalid             <= 1'b1; 
+            arvalid             <= 1'b1;
             if(arvalid && arready_i) begin
                 arvalid         <= 1'b0;
             end
-        end 
+        end
         else begin
             arvalid             <= 1'b0;
         end
     
-        // When R received, save R data in FIFO  
+        // Receive R 
+        // When R received, save R data in FIFO
+        // Contains AW Generation Control
         if(state == S_BUSY && rvalid_i) begin
             rready              <= 1'b1; 
             if(rvalid_i && rready) begin
@@ -231,7 +234,19 @@ module DMAC_INITIATOR
         else begin
             rready              <= 1'b0; 
         end
+
+        // Send W
+        // When u_r_to_w_fifo has values, read out the value of the write 
+        if(!r_to_w_fifo_empty) begin
+            wvalid            <= 1'b1; 
+            if(wvalid && wready_i) begin
+                wvalid        <= 1'b0; 
+            end
+
+        end
     end
+
+
 
     /********************************************************/
     /**************** Output Assignments ********************/
@@ -246,7 +261,7 @@ module DMAC_INITIATOR
     // R Channel
     assign rready_o     = rready & !r_to_w_fifo_full; 
     // AW Channel 
-    assign awaddr_o     = dst_addr;
+    assign awaddr_o     = init_to_aw_fifo_rdata;
     assign awlen_o      = (cnt >= 'd64) ? 4'hF : cnt[5:2]-4'h1; 
     assign awsize_o     = 3'b010;                                  // 4 bytes per transfer
     assign awburst_o    = 2'b01;                                   // incremental
