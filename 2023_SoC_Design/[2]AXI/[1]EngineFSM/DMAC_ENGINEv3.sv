@@ -37,6 +37,7 @@ module DMAC_ENGINE
     output  wire    [1:0]       awburst_o,
     output  wire                awvalid_o,
     input   wire                awready_i,
+    
 
     // AMBA AXI interface (W channel)
     output  wire    [31:0]      wdata_o,
@@ -83,6 +84,7 @@ module DMAC_ENGINE
                                 fifo_rden;
     wire    [31:0]              fifo_rdata;
 
+
     // it's desirable to code registers in a simple way
     always_ff @(posedge clk)
         if (!rst_n) begin
@@ -103,6 +105,7 @@ module DMAC_ENGINE
 
             wcnt                <= wcnt_n;
         end
+
 
     // this block programs output values and next register values
     // based on states.
@@ -186,7 +189,7 @@ module DMAC_ENGINE
                         end
                         else begin
                             state_n                 = S_RREQ;
-                        end                     
+                        end
                     end
                     else begin
                         wcnt_n                  = wcnt - 4'd1;
@@ -219,6 +222,8 @@ module DMAC_ENGINE
         end            
     end
 
+
+
     DMAC_FIFO   u_fifo
     (
         .clk                        (clk),
@@ -236,8 +241,6 @@ module DMAC_ENGINE
     // Output assigments
     assign  done_o                  = done;
 
-    assign  rready_o                = rready & !fifo_full;
-
     assign  awaddr_o                = dst_addr;
     assign  awlen_o                 = (cnt >= 'd64) ? 4'hF: cnt[5:2]-4'h1;
     assign  awsize_o                = 3'b010;   // 4 bytes per transfer
@@ -250,4 +253,14 @@ module DMAC_ENGINE
     assign  wvalid_o                = wvalid;
 
     assign  bready_o                = 1'b1;
+
+    assign  arvalid_o               = arvalid;
+    assign  araddr_o                = src_addr;
+    assign  arlen_o                 = (cnt >= 'd64) ? 4'hF: cnt[5:2]-4'h1;
+    assign  arsize_o                = 3'b010;   // 4 bytes per transfer
+    assign  arburst_o               = 2'b01;    // incremental
+    assign  arvalid_o               = arvalid;
+
+    assign  rready_o                = rready & !fifo_full;
+
 endmodule
