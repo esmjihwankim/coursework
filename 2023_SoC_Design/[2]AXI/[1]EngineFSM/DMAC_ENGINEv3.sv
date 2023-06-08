@@ -15,6 +15,21 @@ module DMAC_ENGINE
     input   wire                start_i,
     output  wire                done_o,
 
+    // AMBA AXI interface (AR channel)
+    output  wire    [31:0]      araddr_o,
+    output  wire    [3:0]       arlen_o,
+    output  wire    [2:0]       arsize_o,
+    output  wire    [1:0]       arburst_o,
+    output  wire                arvalid_o,
+    input   wire                arready_i,
+
+    // AMBA AXI interface (R channel)
+    input   wire    [31:0]      rdata_i,
+    input   wire    [1:0]       rresp_i,
+    input   wire                rlast_i,
+    input   wire                rvalid_i,
+    output  wire                rready_o
+
     // AMBA AXI interface (AW channel)
     output  wire    [31:0]      awaddr_o,
     output  wire    [3:0]       awlen_o,
@@ -33,22 +48,7 @@ module DMAC_ENGINE
     // AMBA AXI interface (B channel)
     input   wire    [1:0]       bresp_i,
     input   wire                bvalid_i,
-    output  wire                bready_o,
-
-    // AMBA AXI interface (AR channel)
-    output  wire    [31:0]      araddr_o,
-    output  wire    [3:0]       arlen_o,
-    output  wire    [2:0]       arsize_o,
-    output  wire    [1:0]       arburst_o,
-    output  wire                arvalid_o,
-    input   wire                arready_i,
-
-    // AMBA AXI interface (R channel)
-    input   wire    [31:0]      rdata_i,
-    input   wire    [1:0]       rresp_i,
-    input   wire                rlast_i,
-    input   wire                rvalid_i,
-    output  wire                rready_o
+    output  wire                bready_o
 );
 
     // mnemonics for state values
@@ -188,7 +188,7 @@ module DMAC_ENGINE
                         end
                         else begin
                             state_n                 = S_RREQ;
-                        end
+                        end                     
                     end
                     else begin
                         wcnt_n                  = wcnt - 4'd1;
@@ -253,12 +253,7 @@ module DMAC_ENGINE
 
     assign  bready_o                = 1'b1;
 
-    assign  arvalid_o               = arvalid;
-    assign  araddr_o                = src_addr;
-    assign  arlen_o                 = (cnt >= 'd64) ? 4'hF: cnt[5:2]-4'h1;
-    assign  arsize_o                = 3'b010;   // 4 bytes per transfer
-    assign  arburst_o               = 2'b01;    // incremental
-    assign  arvalid_o               = arvalid;
+
 
     assign  rready_o                = rready & !fifo_full;
 
