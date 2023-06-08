@@ -37,7 +37,6 @@ module DMAC_ENGINE
     output  wire    [1:0]       awburst_o,
     output  wire                awvalid_o,
     input   wire                awready_i,
-    
 
     // AMBA AXI interface (W channel)
     output  wire    [31:0]      wdata_o,
