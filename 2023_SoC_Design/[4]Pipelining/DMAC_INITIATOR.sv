@@ -3,7 +3,7 @@
 //
 // Authors:
 // - Jungrae Kim <dale40@skku.edu>
-module DMAC_ENGINE 
+module DMAC_INITIATOR 
 (
     input   wire                clk,
     input   wire                rst_n,
@@ -79,10 +79,6 @@ module DMAC_ENGINE
     wire    [31:0]      r_to_w_fifo_rdata;   
     reg     [5:0]       r_to_w_fifo_count,         r_to_w_fifo_count_n;  
 
-            
-    reg                 r_to_w_fifo_readflag;      // notifies if rlast has occured  
-    reg                 r_to_w_fifo_writeflag;     // notifies if wlast has occured  
-
     // Channel Flags : activated during handshake 
     reg                 cfgflag;
     reg                 arflag;
@@ -146,8 +142,8 @@ module DMAC_ENGINE
                 if(arvalid && arready_i) begin
                     src_addr_n                 = src_addr + 'd64; 
                 end 
-                // R CHANNEL handshake incurs address accounting operations  
-                if(rvalid_i && rready) begin 
+                // AW CHANNEL handshake incurs address accounting operations  
+                if(awvalid && awready_i) begin 
                     dst_addr_n                 = dst_addr + 'd64; 
                     wcnt_n                     = awlen_o;
                     if(cnt_n > 'd64) begin
@@ -214,8 +210,6 @@ module DMAC_ENGINE
             done                      <= 1'b0;
 
             cfgflag                   <= 1'b0;
-            arflag                    <= 1'b0;
-            rflag                     <= 1'b0;
             awflag                    <= 1'b0;
             wflag                     <= 1'b0;
         end
@@ -229,14 +223,14 @@ module DMAC_ENGINE
                 end
             end
         
-            // Address read per one read 
-            // cfgflag   : ____________--------------
-            // arvalid_o : ______________------------
-            // arready_i : __________________--------
+            // Address read 
+            // cfgflag   : ______----------------____
+            // arvalid_o : _________------------_____
+            // arready_i : ____________--------_____
             if (state == S_BUSY && cfgflag) begin
-                arvalid             <= 1'b1;
+                arvalid <= 1'b1;
                 if(arvalid && arready_i) begin
-                    cfgflag             <= 1'b0;
+                    cfgflag <= 1'b0;
                     arvalid <= 1'b0;
                 end
             end 
@@ -247,41 +241,36 @@ module DMAC_ENGINE
             // Receive R 
             // When R received, save R data in FIFO
             // Contains AW Generation Control
-            if(state == S_BUSY && rvalid_i) begin
+            if( (state == S_BUSY) && rvalid_i) begin
                 rready  <= 1'b1; 
-                rflag <= 1'b1; 
-                if(rvalid_i && rready && !r_to_w_fifo_full) begin  // read channel valid-ready handshake occurs depending on the FIFO condition 
+                // handshake
+                if(rvalid_i && rready && !r_to_w_fifo_full && !awflag) begin  // read channel valid-ready handshake occurs depending on the FIFO condition 
                     rready <= 1'b0; 
-                    // handshake also lets AW generation by turning on readflag 
-                    rflag  <= 1'b1; 
+                    // Start AW Generation 
+                    // AW GENERATION
+                    // !awflag     : -----------------_______
+                    // awvalid_o   : ________---------_______
+                    // awready_i   : ______________---_______
+                    awvalid  <= 1'b1;
+                    if(awvalid && awready_i && !awflag) begin
+                        awflag <= 1'b1;
+                        awvalid <= 1'b0;
+                    end
                 end
             end
             else begin
                 rready              <= 1'b0; 
             end
-            // AW GENERATION
-            // rflag       : _______------------------
-            // awvalid_o   : ________---------________
-            // awready_i   : ______________---________
-            if(state == S_BUSY && rflag) begin
-                awvalid                   <= 1'b1; 
-                if(awvalid && awready_i) begin
-                    awvalid               <= 1'b0; 
-                    rflag                 <= 1'b0;
-                end
-            end
-            else begin
-                awvalid                   <= 1'b0; 
-            end
+
             // Write on W channel 
             // When u_r_to_w_fifo has values, read out the value of the write 
             // wdata_o    : --data--________--data--_______
             // wvalid_o   : -------------------------------
             // wready_i   : ______--______--______--_______
-            if(state == S_BUSY && !r_to_w_fifo_empty) begin
+            if( (state == S_BUSY) && !r_to_w_fifo_empty) begin
                 wvalid                        <= 1'b1; 
-                if(wvalid && wready_i && !r_to_w_fifo_empty) begin
-                    wlast                     <= (wcnt == 4'd0);
+                if(wvalid && wready_i) begin
+                    wlast <= (wcnt == 4'd0);
                 end
             end
             else begin
