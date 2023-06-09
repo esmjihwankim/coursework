@@ -3,7 +3,7 @@
 //
 // Authors:
 // - Jungrae Kim <dale40@skku.edu>
-module DMAC_INITIATOR 
+module DMAC_ENGINE 
 (
     input   wire                clk,
     input   wire                rst_n,
@@ -244,17 +244,19 @@ module DMAC_INITIATOR
             if( (state == S_BUSY) && rvalid_i) begin
                 rready  <= 1'b1; 
                 // handshake
-                if(rvalid_i && rready && !r_to_w_fifo_full && !awflag) begin  // read channel valid-ready handshake occurs depending on the FIFO condition 
+                if(rvalid_i && rready && !r_to_w_fifo_full) begin  // read channel valid-ready handshake occurs depending on the FIFO condition  
                     rready <= 1'b0; 
                     // Start AW Generation 
                     // AW GENERATION
                     // !awflag     : -----------------_______
                     // awvalid_o   : ________---------_______
                     // awready_i   : ______________---_______
-                    awvalid  <= 1'b1;
-                    if(awvalid && awready_i && !awflag) begin
-                        awflag <= 1'b1;
-                        awvalid <= 1'b0;
+                    if(!awflag) begin 
+                        awvalid  <= 1'b1;
+                        if(awvalid && awready_i && !awflag) begin
+                            awflag <= 1'b1;
+                            awvalid <= 1'b0;
+                        end
                     end
                 end
             end
