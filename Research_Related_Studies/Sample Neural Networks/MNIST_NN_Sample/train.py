@@ -5,7 +5,7 @@ from torchvision import datasets
 from torchvision.transforms import ToTensor
 
 # 1- download dataset
-# 2- create data loader
+# 2- create dl_dataset loader
 # 3- build model
 # 4- train
 # 5- save trained model
@@ -18,7 +18,7 @@ class FeedForwardNet(nn.Module):
 
     def __init__(self):
         super().__init__()
-        # initial layer that will flatten the MNIST data (image -> 1D array)
+        # initial layer that will flatten the MNIST dl_dataset (image -> 1D array)
         self.flatten = nn.Flatten()
         self.dense_layers = nn.Sequential(
             nn.Linear(28*28, 256),
@@ -36,13 +36,13 @@ class FeedForwardNet(nn.Module):
 def download_mnist_datasets():
 
     train_data = datasets.MNIST(
-        root="data",
+        root="dl_dataset",
         download=True,
         train=True,
         transform=ToTensor()
     )
     validation_data = datasets.MNIST(
-        root="data",
+        root="dl_dataset",
         download=True,
         train=False,
         transform=ToTensor()
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     train_data, _ = download_mnist_datasets()
     print("MNIST dataset downloaded")
 
-    # create a data loader for the train set
+    # create a dl_dataset loader for the train set
     train_data_loader = DataLoader(train_data, batch_size=BATCH_SIZE)
 
     # build model
