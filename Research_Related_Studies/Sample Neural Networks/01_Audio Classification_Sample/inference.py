@@ -29,9 +29,9 @@ def predict(model, input, target, class_mapping):
 
 if __name__ == "__main__":
     # load back the model
-    vggnet = CNNNetwork()
+    net = CNNNetwork()
     state_dict = torch.load("cnn_net.pth")
-    vggnet.load_state_dict(state_dict)
+    net.load_state_dict(state_dict)
 
     # load urban sound dataset
     mel_spectrogram = torchaudio.transforms.MelSpectrogram(
@@ -58,6 +58,6 @@ if __name__ == "__main__":
         input, target = usd[i][0], usd[i][1]
         input.unsqueeze_(0)
         # make an inference
-        predicted, expected = predict(vggnet, input, target, class_mapping)
+        predicted, expected = predict(net, input, target, class_mapping)
         print(f"Predicted: f'{predicted}', expected: '{expected}'")
 

@@ -79,4 +79,4 @@ if __name__ == "__main__":
 
     # save model
     torch.save(vggnet.state_dict(), "cnn_net.pth")
-    print("model trained and stored at feedforward.pth")
+    print("model trained and stored at cnn_net.pth")
