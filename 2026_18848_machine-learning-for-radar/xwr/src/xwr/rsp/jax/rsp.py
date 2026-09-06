@@ -1,0 +1,345 @@
+"""Radar Signal Processing implementations."""
+
+from abc import ABC
+
+from jax import numpy as jnp
+from jaxtyping import Array, Complex64, Float32, Int, Int16, Shaped
+
+from xwr.rsp import RSP, iq_from_iiqq
+
+
+class RSPJax(RSP[Array], ABC):
+    """Base Radar Signal Processing with common functionality.
+
+    Args:
+        window: whether to apply a hanning window. If `bool`, the same option
+            is applied to all axes. If `dict`, specify per axis with keys
+            "range", "doppler", "azimuth", and "elevation".
+        size: target size for each axis after zero-padding, specified by axis.
+            If an axis is not spacified, it is not padded.
+        sample_swap: if `True`, swap the I and Q components when
+            un-interleaving IIQQ data.
+    """
+
+    def fft(
+        self, array: Complex64[Array, "..."] | Float32[Array, "..."],
+        axes: tuple[int, ...],
+        size: tuple[int, ...] | None = None,
+        shift: tuple[int, ...] | None = None
+    ) -> Complex64[Array, "..."]:
+        if array.dtype == jnp.float32:
+            fftd = jnp.fft.rfftn(array, s=size, axes=axes)
+        else:
+            fftd = jnp.fft.fftn(array, s=size, axes=axes)
+        if shift is None:
+            return fftd
+        else:
+            return jnp.fft.fftshift(fftd, axes=shift)
+
+    @staticmethod
+    def pad(
+        x: Shaped[Array, "..."], axis: int, size: int
+    ) -> Shaped[Array, "..."]:
+        if size <= x.shape[axis]:
+            raise ValueError(
+                f"Cannot zero-pad axis {axis} to target size {size}, which is "
+                f"less than or equal the current size {x.shape[axis]}.")
+
+        shape = list(x.shape)
+        shape[axis] = size - x.shape[axis]
+        zeros = jnp.zeros(shape, dtype=x.dtype)
+
+        return jnp.concatenate([x, zeros], axis=axis)
+
+    @staticmethod
+    def hann(
+        x: Complex64[Array, "..."] | Float32[Array, "..."], axis: int
+    ) -> Complex64[Array, "..."] | Float32[Array, "..."]:
+        hann = jnp.hanning(x.shape[axis] + 2)[1:-1]
+        broadcast: list[None | slice] = [None] * x.ndim
+        broadcast[axis] = slice(None)
+        return x * (hann / jnp.mean(hann))[tuple(broadcast)]
+
+    def azimuth_aoa(
+        self, iq: Complex64[Array, "batch slow tx rx fast"]
+        | Int16[Array, "batch slow tx rx fast*2"]
+    ) -> Int[Array, "batch doppler range"]:
+        """Estimate angle of arrival (AoA).
+
+        !!! note
+
+            The AOA bin resolution is determined by the number of bins this
+            RSP instance is configured with.
+
+        Args:
+            iq: raw IQ data.
+
+        Returns:
+            Estimated angle of arrival (AoA) index for each range-Doppler bin.
+        """
+        spec: Complex64[Array, "batch doppler el az range"] = self(iq)
+        az_spec: Float32[Array, "batch doppler az range"] = (
+            jnp.mean(jnp.abs(spec), axis=2))
+        return jnp.argmax(az_spec, axis=2)
+
+
+class AWR1843AOP(RSPJax):
+    """Radar Signal Processing for AWR1843AOP.
+
+    !!! info "Antenna Array"
+
+        In the TI AWR1843AOP, the MIMO virtual array is arranged in a 2D grid:
+            ```
+            1-1 2-1 3-1   ^
+            1-2 2-2 3-2   | Up
+            1-3 2-3 3-3
+            1-4 2-4 3-4 (TX-RX pairs)
+            ```
+
+    Args:
+        window: whether to apply a hanning window. If `bool`, the same option
+            is applied to all axes. If `dict`, specify per axis with keys
+            "range", "doppler", "azimuth", and "elevation".
+        size: target size for each axis after zero-padding, specified by axis.
+            If an axis is not specified, it is not padded.
+        sample_swap: if `True`, swap the I and Q components when
+            un-interleaving IIQQ data.
+    """
+
+    def mimo_virtual_array(
+        self, rd: Complex64[Array, "#batch doppler tx rx range"]
+    ) -> Complex64[Array, "#batch doppler el az range"]:
+        _, _, tx, rx, _ = rd.shape
+        if tx != 3 or rx != 4:
+            raise ValueError(
+                f"Expected (tx, rx)=3x4, got tx={tx} and rx={rx}.")
+
+        return jnp.swapaxes(rd, 2, 3)
+
+
+class AWR1843Boost(RSPJax):
+    """Radar Signal Processing for AWR1843Boost.
+
+    !!! info "Antenna Array"
+
+        In the TI AWR1843Boost, the MIMO virtual array has resolution 2x8, with
+        a single 1/2-wavelength elevated middle antenna element:
+        ```
+        TX-RX:  2-1 2-2 2-3 2-4           ^
+        1-1 1-2 1-3 1-4 3-1 3-2 3-3 3-4   | Up
+        ```
+
+    Args:
+        window: whether to apply a hanning window. If `bool`, the same option
+            is applied to all axes. If `dict`, specify per axis with keys
+            "range", "doppler", "azimuth", and "elevation".
+        size: target size for each axis after zero-padding, specified by axis.
+            If an axis is not spacified, it is not padded.
+        sample_swap: if `True`, swap the I and Q components when
+            un-interleaving IIQQ data.
+    """
+
+    def mimo_virtual_array(
+        self, rd: Complex64[Array, "#batch doppler tx rx range"]
+    ) -> Complex64[Array, "#batch doppler el az range"]:
+        batch, doppler, tx, rx, range = rd.shape
+        if tx != 3 or rx != 4:
+            raise ValueError(
+                f"Expected (tx, rx)=3x4, got tx={tx} and rx={rx}.")
+
+        mimo = jnp.zeros(
+            (batch, doppler, 2, 8, range), dtype=jnp.complex64
+        ).at[:, :, 0, 2:6, :].set(rd[:, :, 1, :, :]
+        ).at[:, :, 1, 0:4, :].set(rd[:, :, 0, :, :]
+        ).at[:, :, 1, 4:8, :].set(rd[:, :, 2, :, :])
+        return mimo
+
+    def elevation_aoa(
+        self, iq: Complex64[Array, "batch slow tx rx fast"]
+        | Int16[Array, "batch slow tx rx fast*2"]
+    ) -> Float32[Array, "batch doppler range"]:
+        """Estimate elevation angle of arrival (AoA).
+
+        Args:
+            iq: raw IQ data.
+
+        Returns:
+            Estimated elevation angle of arrival (AoA) in radians for each
+                range-Doppler bin.
+        """
+        iq = iq_from_iiqq(iq, sample_swap=self.sample_swap)
+        rd = self.doppler_range(iq)
+        mimo = self.mimo_virtual_array(rd)[:, :, :, 2:-2]
+
+        angle = jnp.angle(mimo)
+        phase_diff: Float32[Array, "batch doppler range"] = jnp.median(
+            angle[:, :, 0] - angle[:, :, 1], axis=3)
+        el_angle = jnp.arcsin((phase_diff / jnp.pi + 1) % 2 - 1)
+        return el_angle
+
+
+class AWR1642Boost(RSPJax):
+    """Radar Signal Processing for the AWR1642 or AWR1843 with TX2 disabled.
+
+    !!! info "Antenna Array"
+
+        The TI AWR1642Boost (or AWR1843Boost with TX2 disabled) has a
+        1x8 linear MIMO array:
+        ```
+        1-1 1-2 1-3 1-4 2-1 2-2 2-3 2-4
+        ```
+
+    Args:
+        window: whether to apply a hanning window. If `bool`, the same option
+            is applied to all axes. If `dict`, specify per axis with keys
+            "range", "doppler", "azimuth", and "elevation".
+        size: target size for each axis after zero-padding, specified by axis.
+            If an axis is not spacified, it is not padded.
+        sample_swap: if `True`, swap the I and Q components when
+            un-interleaving IIQQ data.
+    """
+
+    def mimo_virtual_array(
+        self, rd: Complex64[Array, "#batch doppler tx rx range"]
+    ) -> Complex64[Array, "#batch doppler el az range"]:
+        batch, doppler, tx, rx, range = rd.shape
+        # 1843Boost cast as 1642Boost
+        if tx == 3:
+            if rx != 4:
+                raise ValueError(
+                    f"Expected (tx, rx)=3x4 in 1843Boost -> 1642Boost "
+                    f"emulation, got tx={tx} and rx={rx}.")
+            rd = rd[:, :, [0, 2], :, :]
+        else:
+            if tx != 2 or rx != 4:
+                raise ValueError(
+                    f"Expected (tx, rx)=2x4, got tx={tx} and rx={rx}.")
+
+        return rd.reshape(batch, doppler, 1, -1, range)
+
+
+class AWRL6844EVM(RSPJax):
+    """Radar Signal Processing for AWRL6844.
+
+    !!! info "Antenna Array"
+
+        The AWRL6844 has a 4x4 MIMO virtual array with λ/2 spacing:
+        ```
+        2-1 2-4 1-1 1-4   ^
+        2-2 2-3 1-2 1-3   | Up
+        3-1 3-4 4-1 4-4
+        3-2 3-3 4-2 4-3 (TX-RX pairs)
+        ```
+
+    !!! info "TX Phase Relationship"
+
+        TX1 and TX3 are in phase with each other. TX2 and TX4 are also in
+        phase with each other, but are 180° out of phase with TX1 and TX3.
+        Their contributions to the virtual array are negated accordingly.
+
+        Source: Table 3-1, *EVM User's Guide: AWRL6844EVM IWRL6844EVM*.
+
+    Args:
+        window: whether to apply a hanning window. If `bool`, the same option
+            is applied to all axes. If `dict`, specify per axis with keys
+            "range", "doppler", "azimuth", and "elevation".
+        size: target size for each axis after zero-padding, specified by axis.
+            If an axis is not specified, it is not padded.
+    """
+
+    SAMPLE_TYPE = "I"
+
+    def mimo_virtual_array(
+        self, rd: Complex64[Array, "#batch doppler tx rx range"]
+    ) -> Complex64[Array, "#batch doppler el az range"]:
+        _, _, tx, rx, _ = rd.shape
+        if tx != 4 or rx != 4:
+            raise ValueError(
+                f"Expected (tx, rx)=4x4, got tx={tx} and rx={rx}.")
+
+        tx_idx = jnp.array(
+            [[1, 1, 0, 0], [1, 1, 0, 0], [2, 2, 3, 3], [2, 2, 3, 3]])
+        rx_idx = jnp.array(
+            [[0, 3, 0, 3], [1, 2, 1, 2], [0, 3, 0, 3], [1, 2, 1, 2]])
+        phase = jnp.array(
+            [[-1, -1, 1, 1], [-1, -1, 1, 1], [1, 1, -1, -1], [1, 1, -1, -1]],
+            dtype=jnp.float32)
+        return rd[:, :, tx_idx, rx_idx, :] * phase[None, None, :, :, None]
+
+
+class AWR2944EVM(RSPJax):
+    """Radar Signal Processing for AWR2944EVM.
+
+    !!! info "Antenna Array"
+
+        The AWR2944EVM has a virtual array on a 2x12 grid:
+        ```
+                2-1 2-2 2-3 2-4
+        1-1 1-2 1-3 1-4 3-1 3-2 3-3 3-4 4-1 4-2 4-3 4-4
+        ```
+        The horizontal spacing is 1/2 wavelength, and the vertical spacing is
+        0.8 wavelength.
+
+    Args:
+        window: whether to apply a hanning window. If `bool`, the same option
+            is applied to all axes. If `dict`, specify per axis with keys
+            "range", "doppler", "azimuth", and "elevation".
+        size: target size for each axis after zero-padding, specified by axis.
+            If an axis is not spacified, it is not padded.
+    """
+
+    SAMPLE_TYPE = "I"
+
+    def mimo_virtual_array(
+        self, rd: Complex64[Array, "#batch doppler tx rx range"]
+    ) -> Complex64[Array, "#batch doppler el az range"]:
+        batch, doppler, tx, rx, range = rd.shape
+        mimo = jnp.zeros(
+            (batch, doppler, 2, 12, range), dtype=jnp.complex64
+        ).at[:, :, 0, 2:6, :].set(rd[:, :, 1, :, :]
+        ).at[:, :, 1, 0:4, :].set(rd[:, :, 0, :, :]
+        ).at[:, :, 1, 4:8, :].set(rd[:, :, 2, :, :]
+        ).at[:, :, 1, 8:12, :].set(rd[:, :, 3, :, :])
+        return mimo
+
+    def elevation_azimuth(
+        self, rd: Complex64[Array, "#batch doppler tx rx range"]
+    ) -> Complex64[Array, "#batch doppler el az range"]:
+        """Calculate elevation-azimuth spectrum from range-doppler spectrum.
+
+        !!! warning
+
+            Special treatment is needed for the AWR2944EVM since the two
+            rows of virtual elements are 0.8 wavelength apart instead of
+            0.5. We compute the DTFT along the elevation axis with the
+            steering matrix corresponding to the 0.8 lambda spacing.
+
+        Args:
+            rd: range-doppler spectrum.
+
+        Returns:
+            Computed elevation-azimuth spectrum, with windowing and padding if
+                specified.
+        """
+        mimo = self.mimo_virtual_array(rd)
+
+        if self.window.get("elevation", self._default_window):
+            mimo = self.hann(mimo, 2)
+        if self.window.get("azimuth", self._default_window):
+            mimo = self.hann(mimo, 3)
+
+        az_size = self.size.get("azimuth", mimo.shape[3])
+        spectrum = self.fft(mimo, axes=(3,), shift=(3,), size=(az_size,))
+
+        el_size = self.size.get("elevation", mimo.shape[2])
+        sin_theta = jnp.linspace(-1, 1, el_size)
+        el_elements = jnp.arange(mimo.shape[2])
+        phases = -2j * jnp.pi * 0.8 * jnp.outer(sin_theta, el_elements)
+        steering_matrix = jnp.exp(phases).astype(jnp.complex64)
+
+        el_az_spectrum = jnp.einsum(
+            'bdear,ke->bdkar',
+            spectrum, steering_matrix, optimize=True
+        )
+
+        return el_az_spectrum

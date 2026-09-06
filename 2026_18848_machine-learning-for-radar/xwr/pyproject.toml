@@ -1,0 +1,102 @@
+[build-system]
+requires = ["hatchling", "setuptools", "numpy"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[project]
+name = "xwr"
+version = "0.4.4"
+authors = [
+  { name="Tianshu Huang", email="tianshu2@andrew.cmu.edu" },
+]
+description = "Linux-Compatible Real-Time Raw Data Capture for TI mmWave Radars."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Typing :: Typed",
+    "Operating System :: POSIX :: Linux",
+]
+
+dependencies = [
+    "numpy >= 1.19",
+    "beartype >= 0.20",
+    "pyserial >= 3.5",
+    "types-pyserial >= 3.5",
+    "jaxtyping >= 0.3.2",
+    "pyFFTW >= 0.15.0",
+    "tyro>=1.0.16",
+    "pyyaml>=6.0.2",
+    "matplotlib>=3.10.9",
+    "rich>=15.0.0",
+]
+
+[project.optional-dependencies]
+torch = [ "torch >= 2.0" ]
+nn = [ "torch >= 2.0", "torchvision >= 0.15.0" ]
+jax = [ "jax >= 0.4.0" ]
+dev = [
+    "pre-commit >= 4.0.0",
+    "pytest >= 8.0.0",
+    "coverage",
+    "pytest-cov",
+    "pyright >= 1.0.0",
+    "ruff >= 0.11.0"
+]
+docs = [
+    "abstract_dataloader >= 0.3.5",
+    "mkdocs == 1.6.*",
+    "mkdocs-material == 9.6.*",
+    "mkdocstrings-python-xref == 1.16.3",
+    "mkdocstrings-python == 1.16.6",
+    "griffe == 1.8.0",
+    "ruff >= 0.11.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/RadarML/xwr"
+Documentation = "https://radarml.github.io/xwr"
+Issues = "https://github.com/RadarML/xwr/issues"
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W", "N", "I", "D", "NPY"
+]
+ignore = [
+    "D102",  # Inheriting docstrings is allowed
+    "D107",  # Initializer goes in the class docstring
+    "D401",  # "Imperative mood" NLP doesn't always make sense
+    "D413",  # No blank lines after section is preferred by mkdocstrings
+    "N806",  # We do math, so capitalization should be allowed
+    "E402",  # Module level imports sometimes need to occur after configuration
+    "F722",  # Jaxtyping annotations confuse ruff
+    "F821",
+
+    # Must pick one...
+    "D213",  # Pick 'multi-line-summary-first-line'.
+    "D203",  # Pick `no-blank-line-before-class`.
+]
+
+[tool.coverage.report]
+exclude_also = [
+    '^\s*\.\.\.\s*$',
+    'def __repr__',
+    'if __name__ == .__main__.:',
+    'class .*\bProtocol\):',
+    'raise NotImplementedError',
+]

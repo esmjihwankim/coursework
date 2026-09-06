@@ -1,0 +1,90 @@
+{
+  "created": "2026-09-06 17:15:05",
+  "frames": 5,
+  "trigger_index": 2,
+  "frames_before": 2,
+  "frames_after": 2,
+  "frames_consecutive": true,
+  "frame_index": [
+    2760,
+    2761,
+    2762,
+    2763,
+    2764
+  ],
+  "detection_columns": [
+    "frame",
+    "range_bin",
+    "doppler_bin",
+    "azimuth_bin",
+    "elevation_bin",
+    "range_m",
+    "velocity_mps",
+    "azimuth_deg",
+    "elevation_deg",
+    "snr_db",
+    "x_right_m",
+    "y_forward_m",
+    "z_up_m"
+  ],
+  "coordinate_frame": "x = right, y = forward (boresight), z = up; metres",
+  "radar_config": {
+    "frequency": 77.0,
+    "idle_time": 181.0,
+    "adc_start_time": 4.0,
+    "ramp_end_time": 69.0,
+    "tx_start_time": 1.0,
+    "freq_slope": 57.25,
+    "adc_samples": 128,
+    "sample_rate": 2000,
+    "frame_length": 128,
+    "frame_period": 100.0,
+    "port": null,
+    "num_tx": 3,
+    "num_rx": 4,
+    "bytes_per_sample": 4
+  },
+  "derived": {
+    "range_resolution_m": 0.04091054284934498,
+    "max_range_m": 5.236549484716157,
+    "doppler_resolution_mps": 0.019749548476282026,
+    "max_doppler_mps": 1.2639711024820497,
+    "bandwidth_mhz": 3664.0,
+    "center_frequency_ghz": 79.061,
+    "wavelength_m": 0.0037919133074461493
+  },
+  "processing": {
+    "azimuth_bins": 64,
+    "elevation_bins": 32,
+    "tdm_compensation": true,
+    "doppler_sign": 1,
+    "clutter_removal": false,
+    "cfar": {
+      "guard": [
+        2,
+        2
+      ],
+      "train": [
+        8,
+        4
+      ],
+      "pfa": 0.001,
+      "snr_db": null,
+      "min_range_bin": 2,
+      "zero_doppler_guard": 0,
+      "peak_grouping": true,
+      "noise_floor_fraction": 0.0001
+    }
+  },
+  "raw_layout": {
+    "included": true,
+    "shape": [
+      128,
+      3,
+      4,
+      256
+    ],
+    "dtype": "int16",
+    "order": "IIQQ interleaved; see iq_from_iiqq()"
+  }
+}

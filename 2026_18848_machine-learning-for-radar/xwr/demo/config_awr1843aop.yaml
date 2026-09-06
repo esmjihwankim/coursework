@@ -1,0 +1,38 @@
+# AWR1843AOPEVM: 10 fps, best range + doppler resolution, phone-scale targets.
+#
+# Derived (verified with xwr.constraints.check_config):
+#   T_s (ADC dwell)      64.00 us               excess ramp time  1.00 us
+#   total RF sweep       3950 MHz (77.00 -> 80.95 GHz)
+#   effective bandwidth  3664 MHz
+#   range resolution     4.09 cm  (128 bins -> 5.24 m max range)
+#   doppler resolution   0.0197 m/s (128 bins -> +/-1.26 m/s max doppler)
+#   T_c (per-TX chirp)   750 us   frame time 96.0 ms (96% frame / 26% RF duty)
+#   frame size           768 KiB  -> 63 Mbps (9% of the DCA1000EVM)
+#
+# Binding constraint at 10 fps is the 1 MiB L3 buffer:
+#   adc_samples * frame_length <= 21845   (here 128 * 128 = 16384)
+# Trade along that curve: 256x64 -> 3.94 cm / 10.1 m / +/-0.63 m/s
+#                          64x256 -> 4.68 cm /  3.0 m / +/-2.53 m/s
+#
+# This can be passed to `XWRSystem` by simply unpacking:
+# system = XWRSystem(**config)
+radar:  # -> XWRConfig
+  device: AWR1843       # the AOPEVM uses the same AWR1843 firmware API
+  port: null            # auto-detect (CP2105 "Enhanced" on the AOPEVM)
+  frequency: 77.0       # 77-81 GHz SRR band
+  idle_time: 181.0      # fills the frame to 96% -> best doppler resolution
+  adc_start_time: 4.0   # keep small: it burns sweep bandwidth
+  ramp_end_time: 69.0   # = adc_start + T_s + 1 us excess
+  tx_start_time: 1.0
+  freq_slope: 57.25     # 57.25 * 69.0 us = 3950 MHz total sweep (<= 4 GHz)
+  adc_samples: 128      # range bins
+  sample_rate: 2000     # ksps; device minimum -> longest T_s -> widest B
+  frame_length: 128     # doppler bins (chirps per TX)
+  frame_period: 100.0   # ms -> 10 fps
+capture:  # -> DCAConfig
+  sys_ip: 192.168.33.30
+  fpga_ip: 192.168.33.180
+  data_port: 4098
+  config_port: 4096
+  timeout: 1.0
+  socket_buffer: 6291456  # 8 frames; needs net.core.rmem_max >= this

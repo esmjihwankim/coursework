@@ -1,0 +1,395 @@
+"""Backend-agnostic components."""
+
+from abc import ABC, abstractmethod
+from collections.abc import Mapping
+from typing import (
+    Any,
+    Generic,
+    Literal,
+    Protocol,
+    TypeVar,
+    cast,
+    runtime_checkable,
+)
+
+import numpy as np
+from jaxtyping import Complex64, Float32, Int16
+
+
+@runtime_checkable
+class ArrayLike(Protocol):
+    """Array with shape and dtype."""
+
+    @property
+    def shape(self) -> tuple[int, ...]: ...
+
+    @property
+    def dtype(self) -> Any: ...
+
+
+@staticmethod
+def _check_backend(x: ArrayLike) -> Literal["jax", "torch", "numpy"]:
+    """Check the backend of the array-like object without importing.
+
+    - We assume that `numpy` is always available since it's a required
+        dependency, and relatively cheap to initialize.
+    - For jax, we check for the presence `.at` attribute, which denotes
+        jax-specific syntax for index updates.
+    - For torch, we check for `.to`, which is a torch-specific method for
+        device transfers.
+
+    Args:
+        x: Array-like object to check.
+
+    Returns:
+        Backend name as a string.
+    """
+    if isinstance(x, np.ndarray):
+        return "numpy"
+    elif hasattr(x, "at"):
+        return "jax"
+    elif hasattr(x, "to"):
+        return "torch"
+    else:
+        raise TypeError(
+            f"Unsupported array-like type: {type(x)}. "
+            "Expected numpy.ndarray, jax.Array, or torch.Tensor.")
+
+
+TArray = TypeVar("TArray", bound=ArrayLike)
+
+
+def iqiq_from_iiqq(
+    iiqq: Int16[TArray, "... n"],
+    sample_swap: bool = False,
+) -> Int16[TArray, "... n/2 2"]:
+    """Un-interleave IIQQ data.
+
+    Type Parameters:
+        - `TArray`: This function is multi-backend, and supports numpy
+            `np.ndarray`, jax `jax.Array`, and torch `Tensor`.
+
+    Args:
+        iiqq: interleaved IIQQ data; see [`RadarFrame`][xwr.capture.types.].
+        sample_swap: if `True`, swap the I and Q components in the output.
+
+    Returns:
+        IQ data in an uninterleaved format with a trailing I/Q axis.
+    """
+    shape = (*iiqq.shape[:-1], iiqq.shape[-1] // 2)
+    i_idx, q_idx = (1, 0) if sample_swap else (0, 1)
+
+    backend = _check_backend(iiqq)
+    if backend == "numpy":
+        assert isinstance(iiqq, np.ndarray)
+
+        iq = np.zeros((*shape, 2), dtype=np.int16)
+        iq[..., 0::2, q_idx] = iiqq[..., 0::4]
+        iq[..., 1::2, q_idx] = iiqq[..., 1::4]
+        iq[..., 0::2, i_idx] = iiqq[..., 2::4]
+        iq[..., 1::2, i_idx] = iiqq[..., 3::4]
+        return cast(Int16[TArray, "... n/2 2"], iq)
+
+    elif backend == "jax":
+        from jax import numpy as jnp
+        assert isinstance(iiqq, jnp.ndarray)
+
+        iq = jnp.zeros(
+            (*shape, 2), dtype=jnp.int16
+        ).at[..., 0::2, q_idx].set(iiqq[..., 0::4]
+        ).at[..., 1::2, q_idx].set(iiqq[..., 1::4]
+        ).at[..., 0::2, i_idx].set(iiqq[..., 2::4]
+        ).at[..., 1::2, i_idx].set(iiqq[..., 3::4])
+        return cast(Int16[TArray, "... n/2 2"], iq)
+
+    else:  # backend == "torch"
+        import torch
+        assert isinstance(iiqq, torch.Tensor)
+
+        iq = torch.zeros((*shape, 2), dtype=torch.int16, device=iiqq.device)
+        iq[..., 0::2, q_idx] = iiqq[..., 0::4]
+        iq[..., 1::2, q_idx] = iiqq[..., 1::4]
+        iq[..., 0::2, i_idx] = iiqq[..., 2::4]
+        iq[..., 1::2, i_idx] = iiqq[..., 3::4]
+        return cast(Int16[TArray, "... n/2 2"], iq)
+
+
+def iq_from_iiqq(
+    iiqq: Int16[TArray, "... n"] | Complex64[TArray, "... _n"],
+    sample_swap: bool = False,
+) -> Complex64[TArray, "... n2"]:
+    """Un-interleave IIQQ data.
+
+    !!! info
+
+        The default `sample_swap = False` corresponds to the
+        [`MSB_LSB_IQ`][xwr.radar.defines.SampleSwap] byte order used by `xwr`.
+
+        In this case, `MSB_LSB_IQ` means that I is the MSB and Q is the LSB.
+        However, the data stream is little-endian, which means Q actually comes
+        before I, leading to the actual physical layout being QQII and so on.
+
+    Type Parameters:
+        - `TArray`: This function is multi-backend, and supports numpy
+            `np.ndarray`, jax `jax.Array`, and torch `Tensor`.
+
+    Args:
+        iiqq: interleaved IIQQ data; see [`RadarFrame`][xwr.capture.types.].
+            If already complex, leave it as is.
+        sample_swap: if `True`, swap the I and Q components so that the
+            output is `Q + j*I` instead of `I + j*Q`.
+
+    Returns:
+        Complex IQ data.
+    """
+    shape = (*iiqq.shape[:-1], iiqq.shape[-1] // 2)
+
+    backend = _check_backend(iiqq)
+    if backend == "numpy":
+        assert isinstance(iiqq, np.ndarray)
+
+        if iiqq.dtype == np.complex64:
+            return iiqq
+        iq = np.zeros(shape, dtype=np.complex64)
+        if sample_swap:
+            iq[..., 0::2] = iiqq[..., 0::4] + 1j * iiqq[..., 2::4]
+            iq[..., 1::2] = iiqq[..., 1::4] + 1j * iiqq[..., 3::4]
+        else:
+            iq[..., 0::2] = 1j * iiqq[..., 0::4] + iiqq[..., 2::4]
+            iq[..., 1::2] = 1j * iiqq[..., 1::4] + iiqq[..., 3::4]
+        return cast(Complex64[TArray, "... n/2"], iq)
+
+    elif backend == "jax":
+        from jax import numpy as jnp
+        assert isinstance(iiqq, jnp.ndarray)
+
+        if iiqq.dtype == jnp.complex64:
+            return iiqq
+        if sample_swap:
+            iq = jnp.zeros(
+                shape, dtype=jnp.complex64
+            ).at[..., 0::2].set(iiqq[..., 0::4] + 1j * iiqq[..., 2::4]
+            ).at[..., 1::2].set(iiqq[..., 1::4] + 1j * iiqq[..., 3::4])
+        else:
+            iq = jnp.zeros(
+                shape, dtype=jnp.complex64
+            ).at[..., 0::2].set(1j * iiqq[..., 0::4] + iiqq[..., 2::4]
+            ).at[..., 1::2].set(1j * iiqq[..., 1::4] + iiqq[..., 3::4])
+        return cast(Complex64[TArray, "... n/2"], iq)
+
+    else: # backend == "torch"
+        import torch
+        assert isinstance(iiqq, torch.Tensor)
+
+        if iiqq.dtype == torch.complex64:
+            return iiqq
+        iq = torch.zeros(shape, dtype=torch.complex64, device=iiqq.device)
+        if sample_swap:
+            iq[..., 0::2] = iiqq[..., 0::4] + 1j * iiqq[..., 2::4]
+            iq[..., 1::2] = iiqq[..., 1::4] + 1j * iiqq[..., 3::4]
+        else:
+            iq[..., 0::2] = 1j * iiqq[..., 0::4] + iiqq[..., 2::4]
+            iq[..., 1::2] = 1j * iiqq[..., 1::4] + iiqq[..., 3::4]
+        return cast(Complex64[TArray, "... n/2"], iq)
+
+
+def _to_float32(
+    x: Int16[TArray, "..."] | Float32[TArray, "..."]
+) -> Float32[TArray, "..."]:
+    backend = _check_backend(x)
+    if backend == "numpy":
+        assert isinstance(x, np.ndarray)
+        return cast(Float32[TArray, "..."], x.astype(np.float32))
+    elif backend == "jax":
+        from jax import numpy as jnp
+        assert isinstance(x, jnp.ndarray)
+        return cast(Float32[TArray, "..."], x.astype(jnp.float32))
+    else:  # backend == "torch"
+        import torch
+        assert isinstance(x, torch.Tensor)
+        return cast(Float32[TArray, "..."], x.float())
+
+
+class RSP(ABC, Generic[TArray]):
+    """Abstract, backend-agnostic Radar Signal Processing base class.
+
+    !!! info
+
+        This class documents the public interface for all radar signal
+        processing (RSP) classes, except where otherwise noted.
+
+    Type Parameters:
+        - `TArray`: Generic backend, e.g., `np.ndarray`, jax `jax.Array`, or
+            torch `Tensor`.
+
+    Args:
+        window: whether to apply a hanning window. If `bool`, the same option
+            is applied to all axes. If `dict`, specify per axis with keys
+            "range", "doppler", "azimuth", and "elevation".
+        size: target size for each axis after zero-padding, specified by axis.
+            If an axis is not spacified, it is not padded.
+        sample_swap: if `True`, swap the I and Q components when
+            un-interleaving IIQQ data.
+    """
+
+    SAMPLE_TYPE: Literal["IQ", "I"] = "IQ"
+
+    def __init__(
+        self, window: bool | Mapping[
+            Literal["range", "doppler", "azimuth", "elevation"], bool] = False,
+        size: Mapping[
+            Literal["range", "doppler", "azimuth", "elevation"], int] = {},
+        sample_swap: bool = False,
+    ) -> None:
+        self.window: dict[
+            Literal["range", "doppler", "azimuth", "elevation"], bool]
+        self._default_window: bool | dict[
+            Literal["range", "doppler", "azimuth", "elevation"], bool]
+
+        if isinstance(window, bool):
+            self.window = {}
+            self._default_window = window
+        else:
+            self.window = dict(window)
+            self._default_window = False
+
+        self.size = size
+        self.sample_swap = sample_swap
+
+    @abstractmethod
+    def fft(
+        self, array: Complex64[TArray, "..."] | Float32[TArray, "..."],
+        axes: tuple[int, ...],
+        size: tuple[int, ...] | None = None,
+        shift: tuple[int, ...] | None = None
+    ) -> Complex64[TArray, "..."]:
+        """Compute FFT on the specified axes of the array.
+
+        Args:
+            array: Input array.
+            size: Target size for each axis after FFT (or `None` to use the
+                input size).
+            axes: Axes along which to compute the FFT.
+            shift: Axes to shift after FFT, if any.
+
+        Returns:
+            FFT of the input array along the specified axes. If the input
+                array is real-valued, the output is the non-negative frequency
+                terms of the FFT along the specified axes (with length
+                `n // 2 + 1`).
+        """
+        ...
+
+    @staticmethod
+    @abstractmethod
+    def hann(
+        x: Complex64[TArray, "..."] | Float32[TArray, "..."], axis: int
+    ) -> Complex64[TArray, "..."] | Float32[TArray, "..."]:
+        """Apply a Hann window to the specified axis of the time signal data.
+
+        Args:
+            x: time signal data.
+            axis: Axis along which to apply the Hann window.
+
+        Returns:
+            Time signal data with the Hann window applied along the specified
+                axis.
+        """
+        ...
+
+    def doppler_range(
+        self, x: Complex64[TArray, "#batch doppler tx rx range"]
+            | Float32[TArray, "#batch doppler tx rx range"]
+    ) -> Complex64[TArray, "#batch doppler2 tx rx range2"]:
+        """Calculate range-doppler spectrum from time signal data.
+
+        Args:
+            x: IQ (complex64) or in-phase-only (float32) data.
+
+        Returns:
+            Computed range-doppler spectrum, with windowing if specified.
+        """
+        if self.window.get("range", self._default_window):
+            x = self.hann(x, 4)
+        if self.window.get("doppler", self._default_window):
+            x = self.hann(x, 1)
+
+        if self.SAMPLE_TYPE == "I":
+            # Double range bins for in-phase-only.
+            nrange = x.shape[-1] // 2
+            range_bins = self.size.get("range", nrange) * 2
+        else:
+            range_bins = self.size.get("range", x.shape[4])
+
+        rd = self.fft(
+            x, axes=(1, 4), shift=(1,),
+            size=(self.size.get("doppler", x.shape[1]), range_bins))
+
+        return rd
+
+    @abstractmethod
+    def mimo_virtual_array(
+        self, rd: Complex64[TArray, "#batch doppler tx rx range"]
+    ) -> Complex64[TArray, "#batch doppler elevation azimuth range"]:
+        """Set up MIMO virtual array from range-doppler spectrum.
+
+        Args:
+            rd: complex range-doppler spectrum.
+
+        Returns:
+            Computed MIMO virtual array, in elevation-azimuth order.
+        """
+        ...
+
+    def elevation_azimuth(
+        self, rd: Complex64[TArray, "#batch doppler tx rx range"]
+    ) -> Complex64[TArray, "#batch doppler el az range"]:
+        """Calculate elevation-azimuth spectrum from range-doppler spectrum.
+
+        Args:
+            rd: range-doppler spectrum.
+
+        Returns:
+            Computed elevation-azimuth spectrum, with windowing and padding if
+                specified.
+        """
+        mimo = self.mimo_virtual_array(rd)
+
+        if self.window.get("elevation", self._default_window):
+            mimo = self.hann(mimo, 2)
+        if self.window.get("azimuth", self._default_window):
+            mimo = self.hann(mimo, 3)
+
+        return self.fft(
+            mimo, axes=(2, 3), shift=(2, 3),
+            size=(
+                self.size.get("elevation", mimo.shape[2]),
+                self.size.get("azimuth", mimo.shape[3])))
+
+    def __call__(
+        self, x: Complex64[TArray, "#batch doppler tx rx _range"]
+            | Float32[TArray, "#batch doppler tx rx _range"]
+            | Int16[TArray, "#batch doppler tx rx _range"]
+    ) -> Complex64[TArray, "#batch doppler2 el az _range"]:
+        """Process time signal data to compute elevation-azimuth spectrum.
+
+        Args:
+            x: IQ data in complex or interleaved int16 IQ format, or
+                in-phase-only data in float32 format.
+
+        Returns:
+            Computed doppler-elevation-azimuth-range spectrum.
+        """
+        for i, size in enumerate(x.shape):
+            if size == 0:
+                raise ValueError(
+                    f"Input array has zero-length dimension {i}: {x.shape}")
+
+        if self.SAMPLE_TYPE == "IQ":
+            x = iq_from_iiqq(x, sample_swap=self.sample_swap)
+        else:
+            x = _to_float32(x)
+
+        dr = self.doppler_range(x)
+        drae = self.elevation_azimuth(dr)
+        return drae

@@ -1,0 +1,116 @@
+site_name: XWR
+repo_url: https://github.com/RadarML/xwr
+repo_name: RadarML/xwr
+nav:
+  - XWR:
+    - Home: index.md
+    - Usage:
+      - User Guide: usage.md
+      - Hardware Setup: setup.md
+      - Development: develop.md
+    - High Level API: system.md
+    - Constraints: constraints.md
+    - ROS Node: ros.md
+    - Firmware: firmware.md
+  - Radar Processing:
+    - rsp: rsp/index.md
+    - rsp.numpy: rsp/numpy.md
+    - rsp.torch: rsp/torch.md
+    - rsp.jax: rsp/jax.md
+    - xwr.nn: nn/index.md
+  - Low Level API:
+    - Capture Card:
+      - API: dca/api.md
+      - Defines: dca/defines.md
+      - Types: dca/types.md
+    - Radar:
+      - API: radar/api.md
+      - Defines: radar/defines.md
+      - Commands: radar/common.md
+
+extra_css:
+  - stylesheets/extra.css
+
+theme:
+  name: material
+  icon:
+    logo: material/antenna
+    annotation: material/arrow-right-circle
+  font:
+    code: monospace
+  features:
+    - navigation.instant
+    - navigation.expand
+    - navigation.tabs
+  palette:
+  - media: "(prefers-color-scheme)"
+    toggle:
+      icon: material/brightness-auto
+      name: Switch to light mode
+  - media: "(prefers-color-scheme: light)"
+    scheme: default
+    primary: blue
+    accent: deep purple
+    toggle:
+      icon: material/weather-sunny
+      name: Switch to dark mode
+  - media: "(prefers-color-scheme: dark)"
+    scheme: slate
+    primary: indigo
+    accent: deep purple
+    toggle:
+      icon: material/weather-night
+      name: Switch to system preference
+
+plugins:
+- search
+- autorefs
+- mkdocstrings:
+    default_handler: python_xref
+    handlers:
+      python_xref:
+        paths: [src]
+        options:
+          docstring_style: google
+          relative_crossrefs: true
+          separate_signature: true
+          line_length: 80
+          show_signature_annotations: true
+          signature_crossrefs: true
+          show_root_full_path: true
+          show_root_members_full_path: true
+          show_symbol_type_heading: true
+          show_root_heading: true
+          show_root_toc_entry: true
+          heading_level: 1
+          check_crossrefs_exclude:
+          - "^torch\\.(.*)"
+          - "^numpy\\.(.*)"
+        inventories:
+        - https://docs.python.org/3/objects.inv
+        - https://numpy.org/doc/stable/objects.inv
+        - https://radarml.github.io/abstract-dataloader/objects.inv
+        - https://docs.pytorch.org/docs/stable/objects.inv
+        - https://docs.jax.dev/en/latest/objects.inv
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - toc:
+      permalink: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - def_list
+  - attr_list
+  - md_in_html
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - footnotes
