@@ -23,6 +23,7 @@ Keyboard
             current frame, and the 2 frames *after* it.
     t       toggle continuous raw recording to disk.
     m       toggle static-clutter (zero-Doppler) removal.
+    d       toggle the heatmap scale between linear amplitude and dB.
     q       quit (also stops the radar cleanly).
 
 Offline / no-hardware modes
@@ -34,6 +35,25 @@ Offline / no-hardware modes
 Signal-processing conventions (see the module-level notes further down):
     cube axes are (doppler, tx, rx, range); the AWR1843AOP virtual array is
     elevation = rx (4 elements), azimuth = tx (3 elements).
+
+Comparing against xwr's demo.py
+-------------------------------
+Defaults here match `xwr`'s `demo/demo.py`: no Hann windows, azimuth padded to
+128, and heatmaps drawn as linear amplitude over `[min, max]`. The plotted
+quantity is the same to within float32 -- by Parseval, our sum of `|X|^2` over
+the 12 virtual antennas equals the mean of `|angle FFT|^2` over the angle bins,
+for any array layout (`--selftest` checks this).
+
+!!! warning "`--rsp AWR1843Boost` is not valid on AOP hardware"
+
+    `demo.py` defaults to the BOOST virtual array, which assumes TX1/TX3 feed
+    a contiguous 8-element *horizontal* row. On the AOPEVM the RX index runs
+    along elevation instead, so that layout mixes the two angle axes. Measured
+    against known targets, it reports the correct azimuth only at boresight,
+    compresses +/-20 deg to +/-7 deg, and inverts the sign beyond +/-40 deg,
+    while looking 2-3x sharper than the true 49.5 deg beamwidth of the AOP's
+    3-element azimuth aperture. Use `--rsp AWR1843AOP` with xwr; `--array
+    boost` here reproduces the incorrect layout for A/B comparison only.
 """
 
 from __future__ import annotations
@@ -51,7 +71,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import numpy as np
 
@@ -786,6 +806,50 @@ def angle_grid(bins: int, spacing: float = 0.5) -> np.ndarray:
     return np.arcsin(np.clip(sin_theta, -1.0, 1.0))
 
 
+def virtual_array_aop(rd: np.ndarray) -> np.ndarray:
+    """AWR1843AOP MIMO virtual array: `(doppler, tx, rx, range)` -> el/az.
+
+    Elevation is the RX axis (4 elements), azimuth the TX axis (3), both on a
+    lambda/2 grid in "image order" (increasing index = down / right). This is
+    the physically correct layout for the AOPEVM. Returns a transposed view,
+    so it costs nothing.
+    """
+    return np.transpose(rd, (0, 2, 1, 3))
+
+
+def virtual_array_boost(rd: np.ndarray) -> np.ndarray:
+    """AWR1843Boost MIMO virtual array: a 2x8 grid with 4 empty slots.
+
+    !!! warning
+
+        This is the layout of the *BOOST* board, where TX1/TX3 feed a
+        contiguous 8-element horizontal row and TX2 sits half a wavelength
+        above its centre. On AOP hardware the RX index runs along
+        **elevation**, not azimuth, so this layout scrambles the two
+        axes: it reports the correct azimuth only at boresight,
+        compresses +/-20 deg to +/-7 deg, and inverts the sign beyond
+        +/-40 deg. Provided only for A/B comparison against `xwr`'s
+        `demo.py --rsp AWR1843Boost`.
+    """
+    n_doppler, n_tx, n_rx, n_range = rd.shape
+    if (n_tx, n_rx) != (3, 4):
+        raise ValueError(f"Boost layout needs 3tx x 4rx, got {n_tx}x{n_rx}.")
+    mimo = np.zeros((n_doppler, 2, 8, n_range), dtype=np.complex64)
+    mimo[:, 0, 2:6] = rd[:, 1]
+    mimo[:, 1, 0:4] = rd[:, 0]
+    mimo[:, 1, 4:8] = rd[:, 2]
+    return mimo
+
+
+_Layout = Callable[[np.ndarray], np.ndarray]
+
+ARRAY_LAYOUTS: dict[str, tuple[_Layout, int, int]] = {
+    "aop": (virtual_array_aop, 4, 3),
+    "boost": (virtual_array_boost, 2, 8),
+}
+"""Layouts, as `(builder, elevation elements, azimuth elements)`."""
+
+
 @dataclass
 class Products:
     """Everything the pipeline derives from one radar frame.
@@ -836,14 +900,18 @@ class Pipeline:
         azimuth_sign: +1 or -1; flips the azimuth axis.
         elevation_sign: +1 or -1; -1 maps "image order" rows to up-positive.
         cfar: CFAR detector settings.
+        array: virtual array layout, a key of `ARRAY_LAYOUTS`. Use `"aop"`;
+            `"boost"` is for A/B comparison against `xwr` only and reports
+            incorrect azimuth on AOP hardware.
     """
 
     def __init__(
-        self, cfg: RadarConfig, azimuth_bins: int = 64,
-        elevation_bins: int = 32, range_window: bool = True,
-        doppler_window: bool = True, tdm_compensation: bool = True,
+        self, cfg: RadarConfig, azimuth_bins: int = 128,
+        elevation_bins: int = 32, range_window: bool = False,
+        doppler_window: bool = False, tdm_compensation: bool = True,
         doppler_sign: int = 1, azimuth_sign: int = 1,
         elevation_sign: int = -1, cfar: "CFAR | None" = None,
+        array: str = "aop",
     ):
         self.cfg = cfg
         self.n_range = cfg.adc_samples
@@ -860,9 +928,15 @@ class Pipeline:
             hann(self.n_doppler).astype(np.float32)[:, None, None, None]
             if doppler_window else None)
 
-        # Azimuth beamformer uses the TX axis, elevation the RX axis.
-        self.az_steer = steering_matrix(cfg.num_tx, azimuth_bins)
-        self.el_steer = steering_matrix(cfg.num_rx, elevation_bins)
+        # Virtual array layout decides which physical axis is which angle.
+        if array not in ARRAY_LAYOUTS:
+            raise ValueError(
+                f"Unknown array layout {array!r}; "
+                f"expected one of {sorted(ARRAY_LAYOUTS)}.")
+        self.array = array
+        self._virtual_array, n_el_elem, n_az_elem = ARRAY_LAYOUTS[array]
+        self.az_steer = steering_matrix(n_az_elem, azimuth_bins)
+        self.el_steer = steering_matrix(n_el_elem, elevation_bins)
 
         # Axes, in physical units.
         self.range_axis = np.arange(self.n_range) * cfg.range_resolution
@@ -921,49 +995,60 @@ class Pipeline:
             "dtrn,dtrn->nd", cube, cube.conj(), optimize=True).real
         return power.astype(np.float32)
 
-    def range_azimuth_power(self, cube: np.ndarray) -> np.ndarray:
+    def range_azimuth_power(self, mimo: np.ndarray) -> np.ndarray:
         """(range, azimuth) power, summed over Doppler and elevation.
 
-        Computed through the 3x3 spatial covariance of the TX axis rather than
-        by beamforming the whole cube. The two are algebraically identical --
+        Computed through the spatial covariance of the azimuth axis rather
+        than by beamforming the whole cube. The two are algebraically
+        identical --
 
-            sum_d sum_el |sum_t A[a,t] X[d,el,t,r]|^2
-                = sum_{t,u} A[a,t] conj(A[a,u]) R[r,t,u],
-            R[r,t,u] = sum_{d,el} X[d,el,t,r] conj(X[d,el,u,r])
+            sum_d sum_el |sum_a A[k,a] X[d,el,a,r]|^2
+                = sum_{a,b} A[k,a] conj(A[k,b]) R[r,a,b],
+            R[r,a,b] = sum_{d,el} X[d,el,a,r] conj(X[d,el,b,r])
 
-        -- but the covariance form costs ~20x less and never materializes the
-        (doppler, elevation, azimuth, range) cube. `--selftest` checks it.
+        -- but the covariance form is ~20x cheaper and never materializes the
+        (doppler, elevation, azimuth, range) angle cube. `--selftest` checks
+        it against direct beamforming for both array layouts.
+
+        Args:
+            mimo: `(doppler, elevation, azimuth, range)` virtual array cube.
         """
-        # (doppler, tx, rx, range) -> (range, tx, doppler * rx)
-        x = np.transpose(cube, (3, 1, 0, 2)).reshape(
-            self.n_range, self.cfg.num_tx, -1)
-        cov = np.matmul(x, x.conj().transpose(0, 2, 1))     # (range, tx, tx)
-        tmp = np.einsum("at,rtu->rau", self.az_steer, cov, optimize=True)
+        n_az_elem = mimo.shape[2]
+        # (doppler, el, az, range) -> (range, az, doppler * el)
+        x = np.transpose(mimo, (3, 2, 0, 1)).reshape(
+            self.n_range, n_az_elem, -1)
+        cov = np.matmul(x, x.conj().transpose(0, 2, 1))     # (range, az, az)
+        tmp = np.einsum("ka,rab->rkb", self.az_steer, cov, optimize=True)
         power = np.einsum(
-            "rau,au->ra", tmp, self.az_steer.conj(), optimize=True).real
+            "rkb,kb->rk", tmp, self.az_steer.conj(), optimize=True).real
         return power.astype(np.float32)
 
     def angles_at(
-        self, cube: np.ndarray, range_bins: np.ndarray,
+        self, mimo: np.ndarray, range_bins: np.ndarray,
         doppler_bins: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Estimate (azimuth bin, elevation bin) at the given detection cells.
 
-        The full 4D angle cube is never needed: we only beamform the 3x4
-        aperture of the cells that actually passed CFAR, then take the peak of
-        the 2D angle spectrum.
+        The full 4D angle cube is never needed: we only beamform the aperture
+        of the cells that actually passed CFAR, then take the peak of the 2D
+        angle spectrum.
+
+        Args:
+            mimo: `(doppler, elevation, azimuth, range)` virtual array cube.
+            range_bins: range index of each detection.
+            doppler_bins: Doppler index of each detection.
         """
         if range_bins.size == 0:
             empty = np.zeros(0, dtype=np.int64)
             return empty, empty
 
-        # (K, tx, rx) -> azimuth beamform -> (K, azimuth, rx)
-        snapshot = cube[doppler_bins, :, :, range_bins]
+        # (K, el, az) -> azimuth beamform -> (K, azimuth bin, el)
+        snapshot = mimo[doppler_bins, :, :, range_bins]
         az = np.einsum(
-            "at,ktr->kar", self.az_steer, snapshot, optimize=True)
-        # -> elevation beamform -> (K, azimuth, elevation)
+            "ka,mea->mke", self.az_steer, snapshot, optimize=True)
+        # -> elevation beamform -> (K, azimuth bin, elevation bin)
         spectrum = np.einsum(
-            "kar,er->kae", az, self.el_steer, optimize=True)
+            "mke,je->mkj", az, self.el_steer, optimize=True)
         power = np.abs(spectrum) ** 2
 
         flat = power.reshape(power.shape[0], -1).argmax(axis=1)
@@ -978,9 +1063,10 @@ class Pipeline:
     ) -> Products:
         """Run the whole chain on one raw frame."""
         cube = self._prepare(self.range_doppler_cube(raw))
+        mimo = self._virtual_array(cube)
 
         rd = self.range_doppler_power(cube)
-        ra = self.range_azimuth_power(cube)
+        ra = self.range_azimuth_power(mimo)
         mask, snr = self.cfar(rd)
 
         r_bins, d_bins = np.nonzero(mask)
@@ -990,7 +1076,7 @@ class Pipeline:
             mask = np.zeros_like(mask)
             mask[r_bins, d_bins] = True
 
-        az_bins, el_bins = self.angles_at(cube, r_bins, d_bins)
+        az_bins, el_bins = self.angles_at(mimo, r_bins, d_bins)
 
         ranges = self.range_axis[r_bins]
         velocity = self.velocity_axis[d_bins]
@@ -1225,6 +1311,75 @@ def _to_db(power: np.ndarray, floor: float = 1e-12) -> np.ndarray:
     return (10.0 * np.log10(np.maximum(power, floor))).astype(np.float32)
 
 
+@dataclass
+class ScaleSettings:
+    """How a power map is turned into pixels; shared by the view and previews.
+
+    Two transfer functions, because they answer different questions:
+
+    - `"amplitude"`: `sqrt(power)` on a linear scale spanning `[min, max]`.
+      This is what `xwr`'s `demo.py` plots, and it is aggressively
+      peak-relative: a return 20 dB below the frame peak lands at 10% of the
+      colormap and one 40 dB down at 1%, i.e. effectively black. The result is
+      a clean picture of *the strongest thing in the room* -- wave a phone in
+      front of the radar and you see the phone, not your arm.
+    - `"db"`: `10*log10(power)`, windowed from the noise floor up. The log
+      axis expands the bottom, so the same 40 dB-down return sits at ~59% of
+      the colormap. Far more informative -- every real reflector and the noise
+      texture are visible -- but it looks crowded.
+
+    The noise floor for `"db"` is the median, not the peak: over 90% of a
+    range-Doppler map is noise, so the median is robust, whereas the peak is
+    TX->RX antenna coupling 70-85 dB up and would clamp everything else flat.
+
+    Attributes:
+        scale: active transfer function.
+        dynamic_range: `"db"` only -- dB above the noise floor to display.
+        min_range_bin: exclude the first bins from the *limit* computation
+            (they still render). Antenna coupling at range bin 0-1 is often
+            the strongest cell in the frame, and in `"amplitude"` mode it
+            would otherwise set `vmax` and crush the real scene to black.
+            The default covers coupling spread across bins 0-2 (bin 3 is
+            12 cm, so no real target is lost). Set to 0 for bit-exact `xwr`
+            behaviour.
+        headroom: `"db"` only -- dB shown below the floor, so speckle is not
+            clipped.
+    """
+
+    scale: Literal["amplitude", "db"] = "amplitude"
+    dynamic_range: float = 55.0
+    min_range_bin: int = 3
+    headroom: float = 3.0
+
+    def map(self, power: np.ndarray) -> np.ndarray:
+        """Power map -> display units (amplitude or dB)."""
+        if self.scale == "db":
+            return _to_db(power)
+        return np.sqrt(np.maximum(power, 0.0)).astype(np.float32)
+
+    def clim(self, shown: np.ndarray) -> tuple[float, float]:
+        """Colour limits for a mapped `(range, x)` image."""
+        region = shown
+        if 0 < self.min_range_bin < shown.shape[0]:
+            region = shown[self.min_range_bin:]
+        if self.scale == "db":
+            floor = float(np.percentile(region, 50.0))
+            return floor - self.headroom, floor + self.dynamic_range
+        return float(region.min()), float(region.max())
+
+    def toggle(self) -> str:
+        """Switch to the other transfer function; returns the new one."""
+        self.scale = "db" if self.scale == "amplitude" else "amplitude"
+        return self.scale
+
+    @property
+    def label(self) -> str:
+        """Short description for the status line."""
+        if self.scale == "db":
+            return f"dB (floor +{self.dynamic_range:.0f})"
+        return "linear amplitude"
+
+
 class Recorder:
     """Snapshot ring buffer + continuous raw recorder, both off the hot path.
 
@@ -1239,12 +1394,14 @@ class Recorder:
         after: frames collected after the trigger.
         save_raw: also store the int16 IIQQ frames (768 KiB each here).
         save_preview: render a PNG contact sheet next to each snapshot.
+        scale: display transfer function for the preview PNGs. Pass the same
+            object the live view holds and previews follow the `d` toggle.
     """
 
     def __init__(
         self, outdir: str, radar: RadarConfig, pipeline: Pipeline,
         before: int = 2, after: int = 2, save_raw: bool = True,
-        save_preview: bool = True,
+        save_preview: bool = True, scale: ScaleSettings | None = None,
     ):
         self.outdir = outdir
         self.radar = radar
@@ -1253,6 +1410,7 @@ class Recorder:
         self.after = after
         self.save_raw = save_raw
         self.save_preview = save_preview
+        self.scale = scale if scale is not None else ScaleSettings()
 
         os.makedirs(outdir, exist_ok=True)
         self.history: deque[Products] = deque(maxlen=before + 1)
@@ -1386,11 +1544,15 @@ class Recorder:
                 "wavelength_m": self.radar.wavelength,
             },
             "processing": {
+                "array": pipe.array,
                 "azimuth_bins": pipe.n_azimuth,
                 "elevation_bins": pipe.n_elevation,
+                "range_window": pipe._range_window is not None,
+                "doppler_window": pipe._doppler_window is not None,
                 "tdm_compensation": pipe.tdm_compensation,
                 "doppler_sign": pipe.doppler_sign,
                 "clutter_removal": pipe.clutter_removal,
+                "display_scale": self.scale.scale,
                 "cfar": {
                     "guard": [pipe.cfar.guard_r, pipe.cfar.guard_d],
                     "train": [pipe.cfar.train_r, pipe.cfar.train_d],
@@ -1431,15 +1593,18 @@ class Recorder:
 
         for row, frame in enumerate(frames):
             tag = " <- trigger" if row == job["trigger_index"] else ""
-            rd = _to_db(frame.range_doppler)
-            ra = _to_db(frame.range_azimuth)
+            rd = self.scale.map(frame.range_doppler)
+            ra = self.scale.map(frame.range_azimuth)
+            rd_lo, rd_hi = self.scale.clim(rd)
+            ra_lo, ra_hi = self.scale.clim(ra)
 
             ax = fig.add_subplot(n, 3, 3 * row + 1)
             ax.imshow(rd, origin="lower", aspect="auto", cmap="viridis",
-                      extent=rd_extent, vmax=rd.max(), vmin=rd.max() - 40)
+                      extent=rd_extent, vmin=rd_lo, vmax=rd_hi)
             ax.set_ylabel(f"#{frame.index}{tag}\nrange (m)", fontsize=8)
             if row == 0:
-                ax.set_title("range-Doppler (dB)", fontsize=9)
+                ax.set_title(
+                    f"range-Doppler ({self.scale.label})", fontsize=9)
             if row == n - 1:
                 ax.set_xlabel("velocity (m/s)", fontsize=8)
 
@@ -1447,16 +1612,17 @@ class Recorder:
             ax.imshow(ra, origin="lower", aspect="auto", cmap="viridis",
                       extent=[0, pipe.n_azimuth, pipe.range_axis[0],
                               pipe.range_axis[-1]],
-                      vmax=ra.max(), vmin=ra.max() - 40)
+                      vmin=ra_lo, vmax=ra_hi)
             _label_angle_axis(ax, pipe.azimuth_axis)
             if row == 0:
-                ax.set_title("range-azimuth (dB)", fontsize=9)
+                ax.set_title(
+                    f"range-azimuth ({self.scale.label})", fontsize=9)
             if row == n - 1:
                 ax.set_xlabel("azimuth (deg)", fontsize=8)
 
             ax = fig.add_subplot(n, 3, 3 * row + 3)
             ax.imshow(rd, origin="lower", aspect="auto", cmap="gray",
-                      extent=rd_extent, vmax=rd.max(), vmin=rd.max() - 40)
+                      extent=rd_extent, vmin=rd_lo, vmax=rd_hi)
             if len(frame.detections):
                 ax.scatter(
                     frame.detections[:, DETECTION_COLUMNS.index(
@@ -1567,18 +1733,22 @@ class Display:
 
     Args:
         pipeline: supplies the physical axes.
-        dynamic_range: dB below each frame's peak that maps to the low end of
-            the colormap.
+        scale: display transfer function; see `ScaleSettings`. The `d` key
+            toggles it in place, so anything else holding the same object
+            (the snapshot previews) follows along.
     """
 
-    HELP = "space: 5-frame snapshot   t: record   m: clutter   q: quit"
+    HELP = ("space: 5-frame snapshot   t: record   m: clutter   "
+            "d: dB/amplitude   q: quit")
 
-    def __init__(self, pipeline: Pipeline, dynamic_range: float = 40.0):
+    def __init__(
+        self, pipeline: Pipeline, scale: ScaleSettings | None = None
+    ):
         import matplotlib.pyplot as plt
 
         self.plt = plt
         self.pipeline = pipeline
-        self.dynamic_range = dynamic_range
+        self.scale = scale if scale is not None else ScaleSettings()
         self.closed = False
         self.key_queue: queue.Queue[str] = queue.Queue()
 
@@ -1592,6 +1762,7 @@ class Display:
         self.fig.canvas.manager.set_window_title(  # type: ignore[union-attr]
             "AWR1843AOP live")
         (ax_rd, ax_ra), (ax_cfar, ax_pc) = axes
+        self.ax_rd, self.ax_ra = ax_rd, ax_ra
 
         r0, r1 = pipeline.range_axis[0], pipeline.range_axis[-1]
         v0, v1 = pipeline.velocity_axis[0], pipeline.velocity_axis[-1]
@@ -1604,14 +1775,14 @@ class Display:
         self.im_rd = ax_rd.imshow(
             blank_rd, origin="lower", aspect="auto", cmap="viridis",
             extent=rd_extent)
-        ax_rd.set_title("range-Doppler (dB)")
+        ax_rd.set_title(f"range-Doppler ({self.scale.label})")
         ax_rd.set_xlabel("velocity (m/s)")
         ax_rd.set_ylabel("range (m)")
 
         self.im_ra = ax_ra.imshow(
             blank_ra, origin="lower", aspect="auto", cmap="viridis",
             extent=[0, pipeline.n_azimuth, r0, r1])
-        ax_ra.set_title("range-azimuth (dB)")
+        ax_ra.set_title(f"range-azimuth ({self.scale.label})")
         ax_ra.set_xlabel("azimuth (deg)")
         ax_ra.set_ylabel("range (m)")
         _label_angle_axis(ax_ra, pipeline.azimuth_axis)
@@ -1663,15 +1834,17 @@ class Display:
 
     def update(self, product: Products, status: str) -> None:
         """Redraw all four panels from one frame's products."""
-        rd = _to_db(product.range_doppler)
-        ra = _to_db(product.range_azimuth)
+        rd = self.scale.map(product.range_doppler)
+        ra = self.scale.map(product.range_azimuth)
 
         self.im_rd.set_data(rd)
-        self.im_rd.set_clim(rd.max() - self.dynamic_range, rd.max())
+        self.im_rd.set_clim(*self.scale.clim(rd))
         self.im_ra.set_data(ra)
-        self.im_ra.set_clim(ra.max() - self.dynamic_range, ra.max())
+        self.im_ra.set_clim(*self.scale.clim(ra))
         self.im_cfar.set_data(rd)
-        self.im_cfar.set_clim(rd.max() - self.dynamic_range, rd.max())
+        self.im_cfar.set_clim(*self.scale.clim(rd))
+        self.ax_rd.set_title(f"range-Doppler ({self.scale.label})")
+        self.ax_ra.set_title(f"range-azimuth ({self.scale.label})")
 
         det = product.detections
         if len(det):
@@ -1928,19 +2101,37 @@ def selftest() -> int:
     check("iq_from_iiqq(iiqq_from_iq(x)) == x",
           np.array_equal(iq_from_iiqq(iiqq_from_iq(iq)), iq))
 
-    # 3. Covariance range-azimuth == direct beamforming.
+    # 3. Covariance range-azimuth == direct beamforming, for both layouts.
     cfg = RadarConfig(adc_samples=32, frame_length=16)
-    pipe = Pipeline(cfg, azimuth_bins=32, elevation_bins=16)
     cube = (rng.normal(size=cfg.cube_shape)
             + 1j * rng.normal(size=cfg.cube_shape)).astype(np.complex64)
-    fast = pipe.range_azimuth_power(cube)
-    beam = np.einsum("at,dtrn->darn", pipe.az_steer, cube, optimize=True)
-    slow = (np.abs(beam) ** 2).sum(axis=(0, 2)).T
-    rel = np.abs(fast - slow).max() / slow.max()
-    check("covariance range-azimuth == direct beamforming",
-          rel < 1e-4, f"max rel err {rel:.2e}")
+    for layout in sorted(ARRAY_LAYOUTS):
+        pipe = Pipeline(cfg, azimuth_bins=32, elevation_bins=16, array=layout)
+        mimo = pipe._virtual_array(cube)
+        fast = pipe.range_azimuth_power(mimo)
+        beam = np.einsum(
+            "ka,dean->dken", pipe.az_steer, mimo, optimize=True)
+        slow = (np.abs(beam) ** 2).sum(axis=(0, 2)).T
+        rel = np.abs(fast - slow).max() / slow.max()
+        check(f"covariance range-azimuth == direct beamforming [{layout}]",
+              rel < 1e-4, f"max rel err {rel:.2e}")
 
-    # 4. Integral-image CFAR training sums == brute force.
+    # 4. Parseval: our antenna power sum == the mean over angle-FFT bins,
+    #    which is what xwr's demo.py plots. Layout-independent.
+    for layout in sorted(ARRAY_LAYOUTS):
+        pipe = Pipeline(cfg, azimuth_bins=32, elevation_bins=16, array=layout)
+        mimo = pipe._virtual_array(cube)
+        angle = np.einsum(
+            "ka,dean->dken", pipe.az_steer, mimo, optimize=True)
+        angle = np.einsum(
+            "dken,je->dkjn", angle, pipe.el_steer, optimize=True)
+        rms = np.sqrt(np.mean(np.abs(angle) ** 2, axis=(1, 2))).T
+        ours = np.sqrt(pipe.range_doppler_power(cube))
+        rel = np.abs(rms - ours).max() / ours.max()
+        check(f"sqrt(mean |angle FFT|^2) == sqrt(our power) [{layout}]",
+              rel < 1e-4, f"max rel err {rel:.2e}")
+
+    # 5. Integral-image CFAR training sums == brute force.
     detector = CFAR(guard=(1, 1), train=(2, 2), snr_db=0.0,
                     min_range_bin=0, group_peaks=False)
     power = rng.random((12, 10)).astype(np.float32) + 0.5
@@ -1965,7 +2156,7 @@ def selftest() -> int:
     check("CFAR summed-area noise == brute force", err < 1e-4,
           f"max err {err:.2e}")
 
-    # 5. End-to-end: a synthetic target lands in the expected bins.
+    # 6. End-to-end: a synthetic target lands in the expected bins.
     cfg = RadarConfig()
     pipe = Pipeline(cfg, azimuth_bins=64, elevation_bins=32,
                     cfar=CFAR(pfa=1e-4, min_range_bin=2))
@@ -1993,7 +2184,7 @@ def selftest() -> int:
             check(f"synthetic target {name}", abs(got - want) <= tol,
                   f"got {got:+.3f}, want {want:+.3f} (tol {tol:.3f})")
 
-    # 6. Throughput.
+    # 7. Throughput.
     start = time.perf_counter()
     for _ in range(10):
         pipe.process(frame.data, 0, 0.0)
@@ -2032,14 +2223,24 @@ def build_parser() -> argparse.ArgumentParser:
                    help="refuse to start if a config constraint fails")
 
     g = p.add_argument_group("processing")
-    g.add_argument("--azimuth-bins", type=int, default=64,
+    g.add_argument("--array", choices=sorted(ARRAY_LAYOUTS), default="aop",
+                   help="MIMO virtual array layout. 'aop' is correct for the "
+                        "AWR1843AOPEVM. 'boost' reproduces xwr's "
+                        "'demo.py --rsp AWR1843Boost' for A/B comparison, but "
+                        "on AOP hardware it scrambles azimuth and elevation: "
+                        "correct only at boresight, +/-20 deg compressed to "
+                        "+/-7 deg, sign inverted beyond +/-40 deg")
+    g.add_argument("--azimuth-bins", type=int, default=128,
                    help="zero-padded azimuth FFT size (lab requires >= 32)")
     g.add_argument("--elevation-bins", type=int, default=32,
                    help="zero-padded elevation FFT size")
-    g.add_argument("--no-range-window", action="store_true",
-                   help="skip the Hann window on the range FFT")
-    g.add_argument("--no-doppler-window", action="store_true",
-                   help="skip the Hann window on the Doppler FFT")
+    g.add_argument("--range-window", action="store_true",
+                   help="apply a Hann window to the range FFT: -59 dB instead "
+                        "of -32.7 dB sidelobes, at 1.36x the mainlobe width")
+    g.add_argument("--doppler-window", action="store_true",
+                   help="apply a Hann window to the Doppler FFT: removes the "
+                        "sidelobe streak across velocity through a strong "
+                        "target, at 1.45x the mainlobe width")
     g.add_argument("--no-tdm-comp", action="store_true",
                    help="skip TDM-MIMO Doppler phase compensation")
     g.add_argument("--doppler-sign", type=int, choices=(1, -1), default=1,
@@ -2056,10 +2257,14 @@ def build_parser() -> argparse.ArgumentParser:
                    metavar=("RANGE", "DOPPLER"), help="guard cells per side")
     g.add_argument("--cfar-train", type=int, nargs=2, default=(8, 4),
                    metavar=("RANGE", "DOPPLER"), help="training cells per side")
-    g.add_argument("--cfar-pfa", type=float, default=1e-3,
-                   help="nominal per-cell false alarm probability")
-    g.add_argument("--cfar-snr-db", type=float, default=None,
-                   help="fixed dB-over-local-mean threshold (overrides --cfar-pfa)")
+    g.add_argument("--cfar-snr-db", type=float, default=15.0,
+                   help="detection threshold, dB over the local noise mean. "
+                        "The default rejects the -32.7 dB sidelobes that "
+                        "unwindowed FFTs leave around strong targets")
+    g.add_argument("--cfar-pfa", type=float, default=None,
+                   help="use a nominal per-cell false alarm probability "
+                        "instead of --cfar-snr-db (e.g. 1e-3). Only sensible "
+                        "with --range-window --doppler-window")
     g.add_argument("--cfar-min-range-bin", type=int, default=2,
                    help="ignore range bins below this")
     g.add_argument("--cfar-max-range-bin", type=int, default=None,
@@ -2087,8 +2292,20 @@ def build_parser() -> argparse.ArgumentParser:
                    help="begin continuous raw recording immediately")
 
     g = p.add_argument_group("display")
-    g.add_argument("--dynamic-range", type=float, default=40.0,
-                   help="dB below peak shown in the heatmaps")
+    g.add_argument("--scale", choices=("amplitude", "db"), default="amplitude",
+                   help="heatmap transfer function; 'd' toggles it live. "
+                        "'amplitude' is sqrt(power) over [min, max], matching "
+                        "xwr's demo.py: only the strongest returns show. "
+                        "'db' is log power windowed up from the noise floor: "
+                        "every reflector and the noise texture show")
+    g.add_argument("--dynamic-range", type=float, default=55.0,
+                   help="--scale db only: dB above the noise floor shown; "
+                        "stronger returns (e.g. TX-RX leakage) saturate")
+    g.add_argument("--clim-min-range-bin", type=int, default=3,
+                   help="exclude the first N range bins when computing the "
+                        "colour limits (they still render). Antenna coupling "
+                        "at bin 0-1 is often the strongest cell and would "
+                        "otherwise crush the scene. 0 = bit-exact xwr")
     g.add_argument("--no-display", action="store_true",
                    help="run headless (for testing or pure recording)")
 
@@ -2139,7 +2356,8 @@ def main(argv: list[str] | None = None) -> int:
 
     detector = CFAR(
         guard=tuple(args.cfar_guard), train=tuple(args.cfar_train),
-        pfa=args.cfar_pfa, snr_db=args.cfar_snr_db,
+        pfa=args.cfar_pfa if args.cfar_pfa is not None else 1e-3,
+        snr_db=None if args.cfar_pfa is not None else args.cfar_snr_db,
         min_range_bin=args.cfar_min_range_bin,
         max_range_bin=args.cfar_max_range_bin,
         zero_doppler_guard=args.cfar_zero_doppler_guard,
@@ -2149,17 +2367,41 @@ def main(argv: list[str] | None = None) -> int:
     pipeline = Pipeline(
         radar_cfg,
         azimuth_bins=args.azimuth_bins, elevation_bins=args.elevation_bins,
-        range_window=not args.no_range_window,
-        doppler_window=not args.no_doppler_window,
+        range_window=args.range_window,
+        doppler_window=args.doppler_window,
         tdm_compensation=not args.no_tdm_comp,
         doppler_sign=args.doppler_sign, azimuth_sign=args.azimuth_sign,
-        elevation_sign=args.elevation_sign, cfar=detector)
+        elevation_sign=args.elevation_sign, cfar=detector,
+        array=args.array)
     pipeline.clutter_removal = args.clutter_removal
+
+    if args.array != "aop":
+        log.warning(
+            "Using the %r virtual array on AOP hardware: azimuth and "
+            "elevation are scrambled (correct only at boresight, sign "
+            "inverted beyond +/-40 deg). For A/B comparison against xwr "
+            "only -- do not treat saved angles as measurements.", args.array)
+    if not (args.range_window or args.doppler_window):
+        log.info(
+            "Hann windows off (xwr parity): sharpest mainlobe (1.0 range bin "
+            "vs 1.36), at -32.7 dB sidelobes instead of -59 dB. CFAR is "
+            "thresholded at %.0f dB over noise to reject them.",
+            args.cfar_snr_db if args.cfar_pfa is None else float("nan"))
+        if args.cfar_pfa is not None:
+            log.warning(
+                "--cfar-pfa with the windows off: expect ~100 sidelobe "
+                "detections per frame around strong targets. Add "
+                "--range-window --doppler-window, or drop --cfar-pfa.")
+
+    scale = ScaleSettings(
+        scale=args.scale, dynamic_range=args.dynamic_range,
+        min_range_bin=args.clim_min_range_bin)
 
     recorder = Recorder(
         args.outdir, radar_cfg, pipeline,
         before=args.snapshot_before, after=args.snapshot_after,
-        save_raw=not args.no_save_raw, save_preview=not args.no_preview)
+        save_raw=not args.no_save_raw, save_preview=not args.no_preview,
+        scale=scale)
 
     source: Any
     if args.simulate:
@@ -2170,7 +2412,7 @@ def main(argv: list[str] | None = None) -> int:
 
     display = None
     if not args.no_display:
-        display = Display(pipeline, dynamic_range=args.dynamic_range)
+        display = Display(pipeline, scale=scale)
 
     if args.record:
         recorder.toggle_recording()
@@ -2196,6 +2438,8 @@ def main(argv: list[str] | None = None) -> int:
                 pipeline.clutter_removal = not pipeline.clutter_removal
                 log.info("Clutter removal %s.",
                          "on" if pipeline.clutter_removal else "off")
+            elif key == "d":
+                log.info("Display scale -> %s.", scale.toggle())
             elif key in ("q", "escape"):
                 log.info("Quit requested.")
                 display.closed = True
