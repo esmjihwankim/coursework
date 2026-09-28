@@ -20,7 +20,8 @@ Live panels
 Keyboard
 --------
     space   save a 5-frame snapshot: the 2 frames *before* the keypress, the
-            current frame, and the 2 frames *after* it.
+            current frame, and the 2 frames *after* it. The preview PNG has
+            one row per frame and the same four panels as the live view.
     t       toggle continuous raw recording to disk.
     m       toggle static-clutter (zero-Doppler) removal.
     d       toggle the heatmap scale between linear amplitude and dB.
@@ -1582,14 +1583,27 @@ class Recorder:
     def _write_preview(
         self, path: str, frames: list[Products], job: dict[str, Any]
     ) -> None:
-        """Render a contact sheet (rows = frames, cols = the three products)."""
+        """Render a contact sheet: one row per frame, four columns.
+
+        The columns mirror the live display: range-Doppler, range-azimuth,
+        CFAR detections over the range-Doppler map, and the same detections
+        as a bird's-eye point cloud (x right, y forward, colored by radial
+        velocity with one colorbar shared down the column).
+        """
         from matplotlib.figure import Figure
 
         pipe = self.pipeline
         n = len(frames)
-        fig = Figure(figsize=(11, 2.6 * n), dpi=110)
-        rd_extent = [pipe.velocity_axis[0], pipe.velocity_axis[-1],
-                     pipe.range_axis[0], pipe.range_axis[-1]]
+        col = DETECTION_COLUMNS.index
+        r0, r1 = pipe.range_axis[0], pipe.range_axis[-1]
+        v0, v1 = pipe.velocity_axis[0], pipe.velocity_axis[-1]
+        vmax = max(abs(v0), abs(v1))
+        rd_extent = [v0, v1, r0, r1]
+
+        fig = Figure(figsize=(15, 2.6 * n), dpi=110, layout="constrained")
+        grid = fig.add_gridspec(n, 4, width_ratios=[1, 1, 1, 1.4])
+        pc_axes = []
+        pc_scatter = None
 
         for row, frame in enumerate(frames):
             tag = " <- trigger" if row == job["trigger_index"] else ""
@@ -1597,8 +1611,9 @@ class Recorder:
             ra = self.scale.map(frame.range_azimuth)
             rd_lo, rd_hi = self.scale.clim(rd)
             ra_lo, ra_hi = self.scale.clim(ra)
+            det = frame.detections
 
-            ax = fig.add_subplot(n, 3, 3 * row + 1)
+            ax = fig.add_subplot(grid[row, 0])
             ax.imshow(rd, origin="lower", aspect="auto", cmap="viridis",
                       extent=rd_extent, vmin=rd_lo, vmax=rd_hi)
             ax.set_ylabel(f"#{frame.index}{tag}\nrange (m)", fontsize=8)
@@ -1608,10 +1623,9 @@ class Recorder:
             if row == n - 1:
                 ax.set_xlabel("velocity (m/s)", fontsize=8)
 
-            ax = fig.add_subplot(n, 3, 3 * row + 2)
+            ax = fig.add_subplot(grid[row, 1])
             ax.imshow(ra, origin="lower", aspect="auto", cmap="viridis",
-                      extent=[0, pipe.n_azimuth, pipe.range_axis[0],
-                              pipe.range_axis[-1]],
+                      extent=[0, pipe.n_azimuth, r0, r1],
                       vmin=ra_lo, vmax=ra_hi)
             _label_angle_axis(ax, pipe.azimuth_axis)
             if row == 0:
@@ -1620,25 +1634,50 @@ class Recorder:
             if row == n - 1:
                 ax.set_xlabel("azimuth (deg)", fontsize=8)
 
-            ax = fig.add_subplot(n, 3, 3 * row + 3)
+            ax = fig.add_subplot(grid[row, 2])
             ax.imshow(rd, origin="lower", aspect="auto", cmap="gray",
                       extent=rd_extent, vmin=rd_lo, vmax=rd_hi)
-            if len(frame.detections):
+            if len(det):
                 ax.scatter(
-                    frame.detections[:, DETECTION_COLUMNS.index(
-                        "velocity_mps")],
-                    frame.detections[:, DETECTION_COLUMNS.index("range_m")],
+                    det[:, col("velocity_mps")], det[:, col("range_m")],
                     s=14, facecolors="none", edgecolors="#ff3b3b",
                     linewidths=0.9)
             if row == 0:
                 ax.set_title("CFAR detections", fontsize=9)
             if row == n - 1:
                 ax.set_xlabel("velocity (m/s)", fontsize=8)
-            ax.text(0.02, 0.95, f"{len(frame.detections)} pts",
+            ax.text(0.02, 0.95, f"{len(det)} pts",
                     transform=ax.transAxes, va="top", fontsize=8,
                     color="#ff3b3b")
 
-        fig.tight_layout()
+            # Bird's eye: the same CFAR detections in Cartesian coordinates,
+            # drawn exactly like the fourth live panel. A thin dark edge keeps
+            # near-zero-velocity points (pale in "coolwarm") visible on white.
+            ax = fig.add_subplot(grid[row, 3])
+            if len(det):
+                xs, ys, vs = (det[:, col("x_right_m")],
+                              det[:, col("y_forward_m")],
+                              det[:, col("velocity_mps")])
+            else:
+                xs = ys = vs = np.zeros(0, dtype=np.float32)
+            pc_scatter = ax.scatter(
+                xs, ys, c=vs, s=18, cmap="coolwarm", vmin=-vmax, vmax=vmax,
+                edgecolors="black", linewidths=0.3)
+            ax.set_xlim(-r1, r1)
+            ax.set_ylim(0, r1)
+            ax.set_aspect("equal")
+            ax.grid(alpha=0.25)
+            ax.set_ylabel("y: forward (m)", fontsize=8)
+            if row == 0:
+                ax.set_title("CFAR point cloud (bird's eye)", fontsize=9)
+            if row == n - 1:
+                ax.set_xlabel("x: right (m)", fontsize=8)
+            pc_axes.append(ax)
+
+        cbar = fig.colorbar(pc_scatter, ax=pc_axes, pad=0.02,
+                            shrink=0.5 if n > 1 else 1.0)
+        cbar.set_label("velocity (m/s)", fontsize=8)
+        cbar.ax.tick_params(labelsize=8)
         fig.savefig(path)
 
     # -- continuous recording ---------------------------------------------
